@@ -1,0 +1,553 @@
+---
+title: "MDSR Chapter 5 Prog Nbk"
+author: "TJ Schaeffer"
+date: "Due: January 20, 2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r echo=TRUE, message=FALSE}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(lubridate)
+library(mosaic)
+library(mosaicData)
+library(NHANES)
+library(macleish)
+library(babynames)
+library(Hmisc)
+# user-defined functions here (if any)
+
+# User defined functions are on p. 108, 110, 111, 112
+
+# load data
+data("CIACountries") # from mdsr 
+data("MedicareCharges") # from mdsr
+```
+
+
+# Chapter Notes
+
+## Section 5.1
+
+## Section 5.1.1
+```{r}
+# p. 91
+library(mdsr) 
+library(googlesheets) 
+hiv_key <- "14nH2oKdgDMlgjtLsYM98kxyVMVa5XTkUUkuF0ZrIDgM" 
+hiv <- 
+  gs_key(hiv_key, lookup = FALSE) %>% 
+  gs_read(ws = "Data", range = cell_limits(c(1, 1), c(276, 34))) 
+names(hiv)[1] <- "Country" 
+hiv %>% 
+  filter(Country %in% c("United States", "France", "South Africa")) %>% 
+  select(Country, `1979`, `1989`, `1999`, `2009`)
+```
+
+```{r}
+# p. 92
+library(tidyr) 
+hiv_long <- 
+  hiv %>% 
+  gather(key = Year, value = hiv_rate, -Country) 
+hiv_long %>% 
+  filter(Country %in% c("United States", "France", "South Africa")) %>% 
+  filter(Year %in% c(1979, 1989, 1999, 2009))
+
+
+```
+
+## Section 5.1.2
+```{r}
+# p. 94
+library(babynames)
+popular_names <- 
+  babynames %>% 
+  group_by(sex, name) %>% 
+  summarise(total_births = sum(n)) %>% 
+  arrange(desc(total_births))
+```
+
+```{r}
+# p. 98
+help(HELPrct)
+```
+
+## Section 5.2
+
+## Section 5.2.1
+
+## Section 5.2.2
+
+## Section 5.2.3
+
+## Section 5.2.4
+
+```{r}
+# p. 101
+babynames %>% 
+  filter(name == "Sue") %>% 
+  group_by(name, sex) %>% 
+  summarise(total = sum(n))
+```
+
+```{r}
+# p. 102
+babynames %>% 
+  filter(name == "Robin") %>% 
+  group_by(name, sex) %>% 
+  summarise(total = sum(n))
+```
+
+```{r}
+# p. 102
+BabyWide <- 
+  babynames %>% group_by(sex, name) %>% 
+  summarise(total = sum(n)) %>% 
+  spread(key = sex, value = total, fill = 0)
+head(BabyWide, 3)
+```
+
+```{r}
+# p. 103
+BabyWide %>% 
+  filter(M > 50000, F > 50000) %>% 
+  mutate(ratio = pmin(M / F, F / M) ) %>% 
+  arrange(desc(ratio)) %>% 
+  head(3)
+```
+
+## Section 5.3
+
+## Section 5.4
+
+## Section 5.4.1
+
+```{r}
+# p. 104
+library(Lahman) 
+names(Teams)
+```
+
+```{r}
+# p. 105
+str(Teams)
+glimpse(Teams)
+```
+
+```{r}
+# p. 105
+averages <- NULL 
+for (i in 15:40) { 
+  averages[i - 14] <- mean(Teams[, i], na.rm = TRUE)
+}
+names(averages) <- names(Teams)[15:40]
+averages
+```
+
+```{r}
+# p. 105
+a <- "a string" 
+class(a)
+length(a)
+```
+
+## Section 5.4.2
+
+```{r}
+# p. 106
+Teams %>% 
+  select(15:40) %>% 
+  apply(MARGIN = 2, FUN = mean, na.rm = TRUE)
+```
+
+```{r}
+# p. 106
+Teams %>% 
+  select(15:40) %>% 
+  apply(MARGIN = 1, FUN = mean, na.rm = TRUE)
+```
+
+```{r}
+# p. 106
+Teams %>% 
+  select(teamID) %>% 
+  apply(MARGIN = 2, FUN = mean, na.rm = TRUE)
+```
+
+```{r}
+# p. 107
+angels <- 
+  Teams %>% 
+  filter(franchID == "ANA") %>% 
+  group_by(teamID, name) %>% 
+  summarise(began = first(yearID), ended = last(yearID)) %>% 
+  arrange(began)
+angels
+```
+
+```{r}
+# p. 107
+angels_names <- angels$name 
+nchar(angels_names[1])
+nchar(angels_names[2])
+nchar(angels_names[3])
+nchar(angels_names[4])
+```
+
+```{r}
+# p. 108
+sapply(angels_names, FUN = nchar)
+lapply(angels_names, FUN = nchar)
+```
+
+```{r}
+# p. 108
+top5 <- 
+  function(x, teamname) {
+    x %>% 
+      filter(name == teamname) %>% 
+      select(teamID, yearID, W, L, name) %>% 
+      arrange(desc(W)) %>% 
+      head(n = 5)
+}
+```
+
+```{r}
+# p. 108
+angels_list <- lapply(angels_names, FUN = top5, x = Teams) 
+angels_list
+```
+
+```{r}
+# p. 109
+angels_list %>%
+  bind_rows() %>% 
+  group_by(teamID, name) %>% 
+  summarise(N = n(), mean_wins = mean(W)) %>% 
+  arrange(desc(mean_wins))
+```
+
+## Section 5.4.3
+
+```{r}
+# p. 110
+exp_wpct <- function (x) { return(1/(1 + (1/x)^2))
+}
+
+TeamRuns <- 
+  Teams %>% 
+  filter(yearID >= 1954) %>% 
+  rename(RS = R) %>% 
+  mutate(WPct = W / (W + L), run_ratio = RS/RA) %>% 
+  select(yearID, teamID, lgID, WPct, run_ratio)
+
+ggplot(data = TeamRuns, aes(x = run_ratio, y = WPct)) + 
+  geom_vline(xintercept = 1, color= "darkgray", linetype = 2) + 
+  geom_hline(yintercept = 0.5, color= "darkgray", linetype = 2) + geom_point(alpha = 0.3) + 
+  stat_function(fun = exp_wpct, size = 2, color = "blue") + 
+  xlab("Ratio of Runs Scored to Runs Allowed") + 
+  ylab("Winning Percentage")
+```
+
+```{r}
+# p. 110
+exWpct <- 
+  fitModel(WPct ~ 1/(1 + (1/run_ratio)^k), data = TeamRuns)
+coef(exWpct)
+```
+
+```{r}
+# p. 111
+fit_k <- function(x) {
+  mod <- 
+    fitModel(formula = WPct ~ 1/(1 + (1/run_ratio)^k), data = x) 
+return(data.frame(k = coef(mod)))
+}
+```
+
+```{r}
+# p. 111
+fit_k(TeamRuns)
+```
+
+```{r}
+# p. 111
+TeamRuns %>% 
+  mutate(decade = yearID %/% 10 * 10) %>% 
+  group_by(decade) %>% 
+  do(fit_k(x = .))
+```
+
+```{r}
+# p. 112
+hr_leader <- function (x) { 
+  x %>% 
+    select(yearID, lgID, teamID, HR) %>% 
+    arrange(desc(HR)) %>% 
+    head(n = 1)
+}
+```
+
+```{r}
+# p. 112
+Teams %>% 
+  filter(yearID == 1961 & lgID == "AL") %>% 
+  hr_leader()
+```
+
+```{r}
+# p. 112
+hr_leaders <- 
+  Teams %>% 
+  group_by(yearID, lgID) %>% 
+  do(hr_leader(.))
+head(hr_leaders, 4)
+```
+
+```{r}
+# p. 113
+mean(HR ~ lgID, data = hr_leaders)
+mean(HR ~ lgID, data = filter(hr_leaders, yearID >= 1916))
+```
+
+```{r}
+# p. 113
+hr_leaders %>% 
+  filter(yearID >= 1916) %>% 
+  ggplot(aes(x = yearID, y = HR, color = lgID)) + 
+  geom_line() + 
+  geom_point() + 
+  geom_smooth(se = 0) + 
+  geom_vline(xintercept = 1973) + 
+  annotate("text", x=1974, y=25, label="AL adopts DH", hjust="left")
+```
+
+## Section 5.4.4
+```{r}
+# p. 114
+k_actual <- 
+  TeamRuns %>% 
+  group_by(yearID) %>% 
+  do(fit_k(.))
+favstats(~ k, data = k_actual)
+```
+
+```{r}
+# p. 114
+ggplot(data = k_actual, aes(x = k)) + 
+  geom_density() + 
+  xlab("Best fit exponent for a single season")
+```
+
+```{r}
+# p. 115
+bstrap <- 
+  do(1000) * mean(~ k, data = resample(k_actual)) 
+head(bstrap, 3)
+
+civals <- 
+  qdata(~ mean, c(0.025, .975), data = bstrap)
+civals
+```
+
+```{r}
+# p. 115
+ggplot(data = bstrap, aes(x = mean)) + 
+  geom_density() + 
+  xlab("Distribution of resampled means") + 
+  geom_vline(data = civals, aes(xintercept = quantile), color = "red", linetype = 3)
+```
+
+## Section 5.5
+
+```{r}
+# p. 116
+save(hr_leaders, file = "hr_leaders.rda", compress = "xz")
+```
+
+```{r}
+# p. 116
+load(file = "hr_leaders.rda")
+```
+
+## Section 5.5.1
+
+```{r}
+# p. 118
+myURL <- "http://tiny.cc/dcf/houses-for-sale.csv" 
+Houses <- readr::read_csv(myURL) 
+head(Houses, 3)
+```
+
+```{r}
+# p. 118
+library(rvest) 
+library(methods) 
+url <- "http://en.wikipedia.org/wiki/Mile_run_world_record_progression" 
+tables <- url %>% 
+  read_html() %>% 
+  html_nodes("table")
+```
+
+```{r}
+# p. 119
+length(tables)
+```
+
+```{r}
+# p. 119
+Table3 <- html_table(tables[[3]])
+```
+
+```{r}
+# p. 120
+Table4 <- html_table(tables[[4]]) 
+Table4 <- select(Table4, -Auto) 
+```
+
+## Section 5.2.2
+
+## Section 5.5.3
+
+```{r}
+# p. 121
+Translations <- 
+  readr::read_csv("http://tiny.cc/dcf/house_codes.csv") 
+Translations %>% head(5)
+```
+
+```{r}
+# p. 121
+CodeVals <- 
+  Translations %>% 
+  spread(key = system_type, value = meaning, fill = "invalid")
+```
+
+```{r}
+# p. 122
+Houses <- 
+  Houses %>% 
+  left_join(CodeVals %>% select(code, fuel_type), by = c(fuel="code")) %>% 
+  left_join(CodeVals %>% select(code, heat_type), by = c(heat="code")) %>% 
+  left_join(CodeVals %>% select(code, sewer_type), by = c(sewer="code"))
+```
+
+```{r}
+# p. 122
+OrdwayBirds %>% 
+  select(Timestamp, Year, Month, Day) %>% 
+  glimpse()
+```
+
+```{r}
+# p. 122-123
+library(readr) 
+OrdwayBirds <- 
+  OrdwayBirds %>% 
+  mutate(Month = parse_number(Month), Year = parse_number(Year), Day = parse_number(Day))
+
+OrdwayBirds %>% 
+  select(Timestamp, Year, Month, Day) %>% 
+  glimpse()
+```
+
+```{r}
+# p. 123
+library(lubridate) 
+WhenAndWho <- 
+  OrdwayBirds %>% 
+  mutate(When = mdy_hms(Timestamp)) %>% 
+  select(Timestamp, Year, Month, Day, When, DataEntryPerson) %>% 
+  glimpse()
+```
+
+```{r}
+# p. 124
+WhenAndWho %>%
+  ggplot(aes(x = When, y = DataEntryPerson)) + 
+geom_point(alpha = 0.1, position = "jitter")
+```
+
+```{r}
+# p. 124
+WhenAndWho %>% 
+  group_by(DataEntryPerson) %>% 
+  summarise(start = first(When), finish = last(When)) %>% 
+  mutate(duration = interval(start, finish) / ddays(1))
+```
+
+```{r}
+# p. 125
+now()
+class(now())
+class(as.POSIXlt(now()))
+```
+
+```{r}
+# p. 125
+as.Date(now())
+```
+
+## Section 5.5.4
+
+```{r}
+# p. 126
+library(lubridate) 
+example <- c("2017-04-29 06:00:00", "2017-12-31 12:00:00") 
+str(example)
+```
+
+```{r}
+# p. 126
+converted <- ymd_hms(example) 
+str(converted)
+```
+
+```{r}
+# p. 126
+converted
+converted[2] - converted[1]
+```
+
+```{r}
+# p. 127
+my_html <- 
+  read_html("https://en.wikipedia.org/wiki/List_of_nuclear_reactors")
+tables <- 
+  my_html %>% 
+  html_nodes(css = "table") 
+relevant_tables <- 
+  tables[grep("Fukushima Daiichi", tables)] 
+reactors <- html_table(relevant_tables[[1]], fill = TRUE) 
+names(reactors)[c(3,4,6,7)] <- 
+  c("Reactor Type",
+"Reactor Model", "Capacity Net", "Capacity Gross")
+reactors <- reactors[-1,]
+```
+
+```{r}
+# p. 127
+library(readr) 
+reactors <- 
+  reactors %>% 
+  rename(capacity_net=`Capacity Net`, capacity_gross=`Capacity Gross`) %>% 
+  mutate(plantstatus = ifelse(grepl("Shut down", reactors$Status),
+"Shut down", "Not formally shut down"), capacity_net = parse_number(capacity_net), construct_date = dmy(`Construction start`), operation_date = dmy(`Commercial operation`), closure_date = dmy(Closure))
+```
+
+```{r}
+# p. 127
+ggplot(data = reactors, aes(x = construct_date, y = capacity_net, color = plantstatus)) + 
+  geom_point() + geom_smooth() + xlab("Date of Plant Construction") + 
+  ylab("Net Plant Capacity (MW)")
+```
+
+## Section 5.6

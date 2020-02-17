@@ -1,0 +1,77 @@
+---
+title: "MDSR Chapter 07 Exercises"
+author: "TJ Schaeffer"
+date: "Due: 0/03/2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(lubridate)
+library(mosaic)
+library(mosaicData)
+library(NHANES)
+library(macleish)
+library(babynames)
+library(Hmisc)
+library(Lahman)
+library(readr)
+library(xtable)
+library(devtools)
+library(rvest)
+# user-defined functions here (if any)
+
+# load data
+data("Gestation") # from mosaicData
+```
+
+
+# Exercises
+
+### Exercise 7.1
+```{r}
+# p. 168
+Bootstrap71 <- 
+  mosaic::do(500) * mean(~ age, data = sample_n(Gestation, size =200, replace = TRUE), na.rm = TRUE)
+confint(Bootstrap71, level = .95)
+```
+
+** We are 95% confident that the mean age of mothers lies between 27 and 28 years old.**
+
+### Exercise 7.2
+```{r}
+Bootstrap72 <- 
+  mosaic::do(500) * median(~ age, data = sample_n(Gestation, size =200, replace = TRUE), na.rm = TRUE)
+confint(Bootstrap72, level = .95)
+```
+
+** We are 95% confident that the median age of mothers lies between 26 and 27 years old.**
+
+### Exercise 7.3
+```{r}
+Bootstrap73 <- 
+  mosaic::do(500) * lm(wt ~ age, data = sample_n(Gestation, size =200, replace = TRUE), na.rm = TRUE)
+confint(Bootstrap73, level = .95)
+```
+
+
+
+### Exercise 7.4
+** Since the empirical rule says that standard deviations multiplier at 95% confidence interval is 2 and the standard deviations multiplier at a 99.7% confidence interval is 3, that means that the standarad deviations multiplier at the 99% confidence interval is between 2 and 3. After looking it up on the interent, the amount of standard deviations that should be used at a 99% confidence interval is 2.58.
+
+
+
+### Excercise 7.5
+The model says that as wind conditions increase/worsen, the distance in the flight of the ball increases. However, the R-squared value is only 9%, which means that the model is very weak.
+
+
+### Excercise 7.6
+The second model includes more variables and is better than the first model because the R-squared value is strong at 59%. Additionally, the Cond plays has a smaller p-value and therefore has a stronger impact on the Dist variable than in the first model. However, the second model is not profoundly better because some of the variables have a high p-value, which means that they don't have a very strong impact on the Dist variable. Overall, in order to make the second model better, you must take out the variables with high p-values. 

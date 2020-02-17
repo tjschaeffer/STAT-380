@@ -1,0 +1,394 @@
+---
+title: "STAT 380 Midterm"
+subtitle: "Spring 2019"
+author: "Thomas Schaeffer"
+date: "Due: 03/01/2019 11:59PM"
+output: html_notebook
+---
+
+
+**Integrity statment.** The work submitted for this assessment is entirely my own.  I have neither given or recieved unauthorized assistance during the assessment, and/or I will speak with Dr. Beckman privately if I am now aware or later become aware of any activity that may be in violation of academic integrity policies stated in the course syllabus or Penn State policy. I understand that the content of my completed exam may not be shared, used, or reproduced for any reason without expressed written permission of Dr. Matthew Beckman (<mdb268@psu.edu>). 
+
+
+# Front matter
+
+```{r}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(tidyverse)
+library(nycflights13)
+library(mdsr)
+library(lubridate)
+library(e1071)
+library(class)
+# user-defined functions
+
+# load data
+data("flights")  # from nycflights13 package
+NWC2013 <- read.csv("nycWeather2013.csv")
+
+# set RNG seed (don't change this for the midterm)
+set.seed(822)
+```
+
+
+
+# Part 1: Principal Components Analysis of JFK Weather Station
+
+
+## 1.1 Data preparation
+
+** Task 1.1.1 The data are "complete", but have been coded in an unconventional way. Recode all use of `NA` as `0` in the NCDC data. **
+```{r}
+# Recoding 'NA' as '0' in the data
+NWC2013clean <- NWC2013
+  NWC2013clean[is.na(NWC2013clean)]<- 0
+str(NWC2013clean)
+```
+
+
+
+
+
+**Task 1.1.2 A few of the variables in the provided data cannot be used for any meaningful analysis because every entry is identical.  Identify which variables they are, report a bullet list indicating the name and description of these variables, and then remove them from your data prior to analysis.**
+
+* PGTM: Peak Gust Time
+* TSUN: Total Sunshine for the Period
+* WT05: Hail (may include small hail)
+* WT06: Glaze or rime
+```{r}
+# Making variables null
+NWC2013clean$PGTM <- NULL
+NWC2013clean$TSUN <- NULL
+NWC2013clean$WT05 <- NULL
+NWC2013clean$WT06 <- NULL
+```
+
+
+
+
+## 1.2 Principal components analysis for JFK weather station
+
+**Task 1.2.1 Perform principal components analysis on data from the JFK airport weather station (only). Standardize all variables prior to analysis.**
+```{r}
+# Keeping stations with JFK station id only
+NWC2013JFK <-
+  NWC2013clean %>%
+  filter(STATION == "USW00094789")
+
+# Removing first 3 variables in data frame to perform pca
+NWC2013JFK <-
+    NWC2013JFK[-c(1,2,3)]
+  
+# Performing PCA on Frame
+NWC2013JFKpca <- 
+  NWC2013JFK %>%
+  prcomp(scale = TRUE)
+
+(-1) * NWC2013JFKpca$rotation[, 1:2] %>% round(2)  
+```
+
+
+
+
+
+**Task 1.2.2 Plot the proportion of variance explained by each principal component on a scree plot.**
+```{r}
+# Creating new variables rowname, totalVar, pve, and cusum
+NWC2013JFKpca_pve <-
+  data.frame(sd = NWC2013JFKpca$sdev) %>%
+  rownames_to_column() %>%
+  mutate(rowname = parse_number(rowname), 
+         totalVar = sum(NWC2013JFKpca$sdev^2), 
+         pve = 100 * sd^2 / totalVar, 
+         cusum = cumsum(pve))
+
+# Plotting scree plot
+NWC2013JFKpca_pve %>%
+  ggplot(aes(x = rowname, y = pve)) + 
+  geom_line(type = 3) + 
+  xlab("Principal Component") + 
+  ylab("Proportion of Variance Explained") + 
+  ggtitle("Scree Plot of Principal Components for nycWeather2013 Data") 
+
+# Plotting cumulative plot
+NWC2013JFKpca_pve %>%
+  ggplot(aes(x = rowname, y = cusum)) + 
+  geom_line(type = 3) + 
+  xlab("Principal Component") + 
+  ylab("Proportion of Variance Explained") + 
+  ggtitle("Cumulative Proportion of Variance Explained for nycWeather2013 Data") 
+```
+
+
+
+
+
+**Task 1.2.3 How many principal components would be required to explain *at least* 76% of the variability in the JFK weather station data.  Be sure to show your work.**
+```{r}
+# Filtering case where cusum is greater than 76%
+NWC2013JFKpca_pve %>%
+  filter(cusum >= 76)
+```
+** It would require 9 principal components to explain at least 76% of the variability in the JFK weather station data. **
+
+
+
+# Part 2: Predictive Modeling LaGuardia Flight Delays
+
+## 2.1 Data preparation 
+
+Create `LaGuardiaFlights` data according to the following instructions:
+
+1. Subset the `flights` data to include only the carriers that had at least 1000 flights depart from LaGuardia
+    - call the resulting data frame `LaGuardiaFlights`
+2. `LaGuardiaFlights` should include the following variables
+    - `tenMinDelay`: **response** {TRUE / FALSE}; indicates departure delay greater than 10 minutes; remove cases with missing response
+    - `hour`: hour of departure using 24 hr clock 
+    - `weekend`: {TRUE / FALSE} indicates flight departed on a Saturday or Sunday
+    - `AWND`: average wind speed reported from the weather station at LaGuardia Airport
+    - `PRCP`: precipitation reported from the weather station at LaGuardia Airport
+    - `SNOW`: snowfall reported from the weather station at LaGuardia Airport
+    - `fog`: {TRUE / FALSE} "Yes" if the weather station at LaGuardia Airport reported any of the following: 
+        - `WT22`: "Ice fog or freezing fog"
+        - `WT01`: "Fog, ice fog, or freezing fog (may include heavy fog)", or 
+        - `WT02`: "Heavy fog or heaving freezing fog (not always distinguished from fog"
+```{r}
+# Filter top 10 carriers
+Top10 <-
+  flights %>%
+  filter(origin == "LGA") %>%
+  group_by(carrier) %>%
+  summarise(count = n()) %>%
+  filter(count > 999) %>%
+  arrange(desc(count))
+
+# Assiginging top 10 carriers into a vector
+TopCarriers <- c(Top10$carrier)
+
+# Creating LGA only data frame
+NWC2013cleanLGA <-
+  NWC2013clean %>%
+  filter(NAME == "LA GUARDIA AIRPORT, NY US") %>%
+  mutate(DATE = as_date(DATE))
+  
+# Combing two data tables
+LaGuardiaFlights <-
+  flights %>%
+  mutate(DATE = as_date(time_hour)) %>%
+  left_join(NWC2013cleanLGA, "DATE")
+
+# Creating new variables in LaGuardia Flights, filtering out certain cases that aren't from LaGuardia Airport, and selecting certain variables
+LaGuardiaFlights <-
+  LaGuardiaFlights %>%
+  mutate(tenMinDelay = dep_delay >= 10, 
+         weekday = wday(time_hour), 
+         weekend = weekday %in% c(1,7), 
+         fog = ifelse(WT22 == 1 | WT01 == 1 | WT02 == 1, TRUE, FALSE)) %>%
+  filter(carrier %in% TopCarriers, 
+         origin == "LGA", 
+         !is.na(dep_delay)) %>%
+  select(tenMinDelay, hour, weekend, AWND, PRCP, SNOW, fog)
+
+# Show finished LaGuardiaFlights
+LaGuardiaFlights
+```
+
+
+**Task 2.1.1 How many total cases are in the `Training` set?**
+```{r}
+# Finding total training cases
+n <- nrow(LaGuardiaFlights)
+test_idx <- sample.int(n, size = round(0.25 * n))
+train <- LaGuardiaFlights[-test_idx, ]  
+nrow(train)
+```
+
+
+
+
+**Task 2.1.2 What percentage of these flights departed at least 10 minutes late?**
+```{r}
+# Finding numbers of flights departed at least 10 minutes late
+LGFTMD <- 
+  LaGuardiaFlights %>%
+  filter(tenMinDelay == "TRUE") %>%
+  nrow
+# Finding percentage
+LGFTMD / nrow(LaGuardiaFlights) *100
+```
+
+
+
+
+**Task 2.1.3 What percentage of these flights departed on the "Weekend"?**
+
+```{r}
+# Finding number of flights departed on the weekend
+LGFWND <- 
+  LaGuardiaFlights %>%
+  filter(weekend == "TRUE") %>%
+  nrow()
+# Finding percentage
+LGFWND / nrow(LaGuardiaFlights) *100
+```
+
+
+
+**Task 2.1.4 What percentage of these flights departed on a day with "Fog"?**
+```{r}
+# Finding number of flights departing with fog
+LGFFOG <- 
+  LaGuardiaFlights %>%
+  filter(fog == "TRUE") %>%
+  nrow
+# Finding percentage
+LGFFOG / nrow(LaGuardiaFlights) *100
+```
+
+
+
+
+
+## 2.2 Partition test and training data
+
+
+**Task 2.2.1 partition 20% of the `LaGuardiaFlights` data for `Test` data and use the remaining 80% for `Training` data (Note: make sure `set.seed(822)` is properly specified in the Front Matter of your Rmd document)**
+```{r}
+# Creating train data
+n <- nrow(LaGuardiaFlights)
+test_idx <- sample.int(n, size = round(0.2 * n))
+train <- LaGuardiaFlights[-test_idx, ]  
+nrow(train)
+
+# Creating test data
+test <- LaGuardiaFlights[test_idx, ]
+nrow(test)
+```
+
+
+
+
+
+
+## 2.3 Predictive modeling
+
+
+**Task 2.3.1 Fit a null model to the `Training` data, and report the accuracy of the model.**
+```{r}
+# Creating null model
+mod_null <- tally(~ tenMinDelay, data = train, format = "percent")
+mod_null
+```
+
+
+
+
+**Task 2.3.2 Fit a logistic regression model to the `Training` data.  Show the resulting confusion matrix, and report the accuracy of the model.**
+```{r}
+# Creating logistic model 
+mod_logit <- glm(tenMinDelay ~ ., data = train, family = "binomial")
+msummary(mod_logit)
+```
+
+```{r}
+# Confusion matrix for logistic model
+tenMinDelay_logitProb <- predict(mod_logit, newdata = train, type = "response")
+tenMinDelay_logit <- ifelse(tenMinDelay_logitProb > 0.5, yes = "FALSE", "TRUE")
+confusion <- tally(tenMinDelay_logit ~ tenMinDelay, data = train, format = "count")
+confusion
+```
+
+```{r}
+# Model accuaracy for logistic model
+logit_acc <- sum(diag(confusion)) / nrow(train) * 100
+logit_acc
+```
+
+**Task 2.3.3 Fit a *k*-nearest neighbors model to the `Training` data.  Show the resulting confusion matrix, and report the accuracy of the model.**
+```{r}
+# Creating train quantile
+train_quant <- 
+  train %>%
+  select(hour, AWND, PRCP, SNOW)
+# KNN classifier
+tenMinDelay_knn <- knn(train = train_quant, test = train_quant, cl = train$tenMinDelay, k = 5)
+# confusion matrix
+confusion <- tally(tenMinDelay_knn ~ tenMinDelay, data = train, format = "count")
+confusion
+```
+
+```{r}
+# Model accuracy for KNN
+knn_acc <- (5072 + 60059) / nrow(train) * 100
+knn_acc
+```
+
+
+
+
+**Task 2.3.4 Fit a naive Bayes model to the `Training` data.  Show the resulting confusion matrix, and report the accuracy of the model.**
+```{r}
+# Creating Naive Bayes
+mod_nb <- naiveBayes(tenMinDelay ~ ., data = train)
+tenMinDelay_nb <- predict(mod_nb, newdata = train)
+confusion <- tally(tenMinDelay_nb ~ tenMinDelay, data = train, format = "count")
+confusion
+```
+
+```{r}
+# Model accuracy for Naive Bayes
+nb_acc <- sum(diag(confusion)) / nrow(train) * 100
+nb_acc
+```
+
+
+## 2.4 Visualization
+
+
+** Task 2.4.1 Create a visualization that shows the predicted probability of 10 minute delay based on hour of departure and precipitation using a logistic regression classifier. Specifically,** 
+
+- The predicted probability of 10 minute delay should be clearly displayed for all plausible combinations of hour and precipitation.
+- overlay `Test` data with clear indication of the observed response 
+- demonstrate good plotting practices
+
+```{r}
+train_logit <- glm(tenMinDelay ~ hour + PRCP, data = train, family = "binomial")
+
+# Creating logistic model and probability of model
+hours <- range(~ hour, data = train) 
+PRCPs <- range(~ PRCP, data = train)
+res <- 100 
+
+fake_grid <- 
+  expand.grid(hour = seq(from = hours[1], to = hours[2], length.out = res), 
+              PRCP = seq(from = PRCPs[1], to = PRCPs[2], length.out = res))
+
+train_logit_prob <-
+  predict(train_logit, newdata = fake_grid, type = "response")
+
+newdata <-
+  fake_grid %>%
+  mutate(y_hat = train_logit_prob)
+  
+# Creating plot
+ggplot(data = newdata, aes(x = hour, y = PRCP)) + 
+  geom_tile(aes(fill = y_hat), color = NA) + 
+  geom_count(aes(color = tenMinDelay), alpha = 0.4, data = train) +
+  geom_count(aes(color = tenMinDelay), alpha = 0.4, data = test) +
+  scale_fill_gradient(low = "white", high = "dodgerblue") + 
+  scale_color_manual(values = c("gray", "gold")) + 
+  scale_size(range = c(0, 2)) + 
+  scale_x_continuous(expand = c(0.02,0)) + 
+  scale_y_continuous(expand = c(0.02,0)) +
+  ggtitle("PP of 10 Minute Delay Based on Hour of Depature and Precipitation")
+```
+
+
+
+
+
+
+

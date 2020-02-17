@@ -1,0 +1,107 @@
+---
+title: "MDSR Chapter 10 Exercises"
+author: "TJ Schaeffer"
+date: "Due: 04/07/2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(mosaic)
+library(mosaicData)
+library(tidyr)
+# user-defined functions here (if any)
+# gen_samp() (Exercise 15)
+
+# load data
+
+```
+
+
+# Exercises
+
+## Exercise 10.2
+```{r}
+set.seed(1976)
+jobs_true <- 150 
+jobs_se <- 65 
+gen_samp <- function(true_mean, true_sd,
+                     num_months = 12, delta = 15, id = 1) { 
+  samp_year <- rep(true_mean, num_months) +
+    rnorm(num_months, mean = delta * (1:num_months), sd = true_sd) 
+  return(data.frame(jobs_number = samp_year,
+                    month = as.factor(1:num_months), id = id))
+}
+
+
+
+n_sims <- 3 
+params <- data.frame(sd = c(0, rep(jobs_se, n_sims)),
+                                 id = c("Truth", paste("Sample", 1:n_sims)))
+params
+
+df <- params %>% 
+  group_by(id) %>% 
+  dplyr::do(gen_samp(true_mean = jobs_true, 
+                     true_sd = .$sd, id = .$id))
+
+
+ggplot(data = df, aes(x = month, y = jobs_number)) + 
+  geom_hline(yintercept = jobs_true, linetype = 2) + 
+  geom_bar(stat = "identity") + 
+  facet_wrap(~ id) + 
+  ylab("Number of new jobs (in thousands)")
+```
+Job numbers are roughly projected to go up every month by 15,000 months. #trumptrain #Iwasdaredtoputthehashtag
+
+## Exercise 10.4
+```{r} 
+doors <- c("A", "B", "C")
+
+sims = c()
+for(i in 1:1000)
+{
+  prize <- sample(doors, size = 1)
+  selection <- sample(doors, size = 1)
+  open <- sample(doors[which(doors != selection & doors != prize)], size = 1)
+  switchyes <- sample(doors[which(doors != selection & doors != open)], size = 1)
+  if (pick == selection) 
+    sims = c(sims, "win")
+  if (switchyes == prize) 
+    sims = c(sims, "switchwin")
+  total = switchwin + win
+}
+
+switchwin <- length(which(sims == "switchwin"))
+win <- length(which(sims == "win"))
+
+print(switchwin/total)
+```
+
+
+## Exercise 10.7
+```{r}
+for(i in 1:1000)
+{
+  n <- 250
+  rmse <- 1 
+  x1 <- rep(c(0,1), each=n/2) 
+  x2 <- runif(n, min=0, max=5) 
+  beta0 <- -1 
+  beta1 <- 0.5 
+  beta2 <- 1.5 
+  y <- beta0 + beta1*x1 + beta2*x2 + rexp(n, rate=1/2)
+}
+
+plot(density(beta1*x1))
+qqnorm(y)
+```
+The values are being pulled from a right skewed distribution, which means that you can't trust them since they aren't from a normal distribution. 

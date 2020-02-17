@@ -1,0 +1,113 @@
+---
+title: "MDSR Chapter 09 Exercises"
+author: "TJ Schaeffer"
+date: "Due: 02/24/2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(readxl)
+library(tidyr)
+library(ape)
+library(mclust)
+library(Lahman)
+# user-defined functions here (if any)
+
+# load data
+```
+
+
+# Exercises
+
+## Exercise 9.2
+```{r}
+# Downloading File
+download.file("https://www.fueleconomy.gov/feg/epadata/16data.zip", destfile = "data/fueleconomy.zip") 
+unzip("data/fueleconomy.zip", exdir = "data/fueleconomy/")
+
+# Editing the file into table with General Motor Cars
+filename <- list.files("data/fueleconomy", pattern = "public\\.xlsx")[1] 
+cars <- 
+  read_excel(paste0("data/fueleconomy/", filename)) %>% 
+  data.frame() 
+cars <- cars %>%
+rename(make = Mfr.Name, model = Carline, displacement = Eng.Displ, cylinders = X..Cyl, city_mpg = City.FE..Guide....Conventional.Fuel, hwy_mpg = Hwy.FE..Guide....Conventional.Fuel, gears = X..Gears) %>% 
+  select(make, model, displacement, cylinders, gears, city_mpg, hwy_mpg) %>% 
+  distinct(model, .keep_all = TRUE) %>% 
+  filter(make == "General Motors") 
+rownames(cars) <- cars$model 
+glimpse(cars)
+
+# Finding distance between each individual car
+car_diffs <- dist(cars) 
+str(car_diffs)
+
+# Creating dendogram
+car_diffs %>% 
+  hclust() %>% 
+  as.phylo() %>% 
+  plot(cex = 0.9, label.offset = 1)
+```
+
+## Exercise 9.4
+```{r}
+# Loading in BigCities Data
+BigCities <- 
+  WorldCities %>% 
+  arrange(desc(population)) %>% 
+  head(4000) %>% 
+  select(longitude, latitude)
+glimpse(BigCities)
+
+# Creating clustering algorithm with different k-means
+set.seed(15) 
+city_clusts <- 
+  BigCities %>% 
+  kmeans(centers = 6) %>% 
+  fitted("classes") %>% 
+  as.character() 
+BigCities <- 
+  BigCities %>% 
+  mutate(cluster = city_clusts) 
+BigCities %>% 
+  ggplot(aes(x = longitude, y = latitude)) + 
+  geom_point(aes(color = cluster), alpha = 0.5)
+```
+
+** After playing around with different values for k, I found that the higher the k value, the more sensitive the graph becomes and therefore the more accurate the graph truly is. This makes sense since the closer the k value get to the total population of the table, the less error in the graph there will be since it's closer to the true population parameter. **
+
+## Exercise 9.5
+```{r}
+# Creating table to identify Hall of Fame players
+hof <- 
+  Batting %>% 
+  group_by(playerID) %>% 
+  inner_join(HallOfFame, by = c("playerID" = "playerID")) %>% 
+  filter(inducted == "Y" & votedBy == "BBWAA") %>% 
+  summarize(tH = sum(H), tHR = sum(HR), tRBI = sum(RBI), tSB = sum(SB)) %>% 
+  filter(tH > 1000)
+
+hof_clusts <- 
+  hof %>% 
+  select(tH, tHR, tRBI, tSB) %>%
+  kmeans(centers = 4) %>%
+  fitted("classes") %>%
+  as.character()
+
+hof <- 
+  hof %>% 
+  mutate(cluster = hof_clusts) 
+
+hof %>% 
+  ggplot(aes(x = tH, y = tSB)) + 
+  geom_point(aes(color = hof_clusts), alpha = 0.5)
+```
+** After playing around with different charts, I believe that this chart shows the most distinct spread between the 4 clusters. Cluster 1 tends to be right in the aveage lane for total hits and but above average with stolen bases, cluster 2 is in the average for total hits but end up on the lower level for total stolen bases, cluster 3 tends to be above average for total hits but under average for  total stolen bases, and cluster 4 is at the bottom end for both categories. ** 

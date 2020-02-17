@@ -1,0 +1,101 @@
+---
+title: "MDSR Chapter 15 Exercises"
+author: "TJ Schaeffer"
+date: "Due: 04/14/2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(mosaic)
+library(mosaicData)
+library(tidyr)
+library(stringr)
+library(aRxiv)
+library(lubridate)
+library(tm)
+library(wordcloud)
+library(rvest)
+library(methods)
+library(twitteR)
+library(RSQLite)
+library(ggmap)
+library(babynames)
+# user-defined functions here (if any)
+
+# load data
+data("Macbeth_raw")
+data("babynames")
+```
+
+
+# Exercises
+
+## Exercise 15.1
+```{r}
+macbeth_url <- "http://www.gutenberg.org/cache/epub/1129/pg1129.txt" 
+Macbeth_raw <- RCurl::getURL(macbeth_url)
+
+lines <- strsplit(Macbeth_raw, "\r\n {2}[A-Z| |0-9]*\\. ")[[1]][-1]
+Macbeth <- data.frame(lines)
+nrow(Macbeth)
+```
+
+## Exercise 15.3
+```{r}
+boynamesvol <-
+  babynames %>%
+  filter(sex == "M") %>%
+  filter(grepl("[aeiou]$", name)) %>%
+  group_by(name) %>%
+  summarize(count = sum(n)) %>%
+  arrange(desc(count)) %>%
+  head(10)
+boynamesvol
+
+jonames <-
+  babynames %>%
+  filter(grepl("jo$|joe$|Jo$|Joe$", name)) %>%
+  group_by(name) %>%
+  summarize(count = sum(n)) %>%
+  arrange(desc(count)) %>%
+  head(10)
+jonames
+```
+
+## Exercise 15.6
+```{r}
+macbeth_url <- "http://www.gutenberg.org/files/100/100-h/100-h.htm" 
+Macbeth_raw <- RCurl::getURL(macbeth_url)
+
+lines2 <- strsplit(Macbeth_raw, "[A-Z]{4,}\\.")[[1]][-1]
+length(lines2)
+```
+
+## Exercise 15.7
+```{r}
+speakers <- stringr::str_extract_all(Macbeth_raw, "[A-Z]{4,}\\.")[[1]]
+AllShakespeare <- data.frame(speakers, lines2)
+
+Top_30 <-
+  AllShakespeare %>%
+  group_by(speakers) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  head(30)
+
+AllShakespeare %>%
+  inner_join(Top_30) %>%
+  ggplot(aes(x = speakers)) +
+  geom_bar()
+  
+```
+

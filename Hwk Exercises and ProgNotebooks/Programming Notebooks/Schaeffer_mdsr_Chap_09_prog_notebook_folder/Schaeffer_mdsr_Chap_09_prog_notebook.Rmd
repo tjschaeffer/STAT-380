@@ -1,0 +1,224 @@
+---
+title: "MDSR Chapter 9 Prog Nbk"
+author: "TJ Schaeffer"
+date: "Due: February 24, 2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r echo=TRUE, message=FALSE}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(readxl)
+library(mclust)
+library(tidyr)
+library(ape)
+# user-defined functions here (if any)
+
+# load data
+```
+
+# Chapter 9 Notes
+
+## Section 9.1
+
+### Section 9.1.1
+```{r}
+# p. 206
+download.file("https://www.fueleconomy.gov/feg/epadata/16data.zip", destfile = "data/fueleconomy.zip") 
+unzip("fueleconomy.zip", exdir = "data/fueleconomy/")
+```
+
+```{r}
+# p. 207
+filename <- list.files("data/fueleconomy", pattern = "public\\.xlsx")[1] 
+cars <- 
+  read_excel(paste0("data/fueleconomy/", filename)) %>% 
+  data.frame() 
+cars <- cars %>%
+rename(make = Mfr.Name, model = Carline, displacement = Eng.Displ, cylinders = X..Cyl, city_mpg = City.FE..Guide....Conventional.Fuel, hwy_mpg = Hwy.FE..Guide....Conventional.Fuel, gears = X..Gears) %>% 
+  select(make, model, displacement, cylinders, gears, city_mpg, hwy_mpg) %>% 
+  distinct(model, .keep_all = TRUE) %>% 
+  filter(make == "Toyota") 
+rownames(cars) <- cars$model 
+glimpse(cars)
+```
+
+```{r}
+# p. 207
+car_diffs <- dist(cars) 
+str(car_diffs)
+```
+
+```{r}
+# p. 208
+car_mat <- car_diffs %>% as.matrix() 
+car_mat[1:6, 1:6] %>% round(digits = 2)
+```
+
+```{r}
+# p. 208
+car_diffs %>% 
+  hclust() %>% 
+  as.phylo() %>% 
+  plot(cex = 0.9, label.offset = 1)
+```
+
+### Section 9.1.2
+```{r}
+# p. 210
+BigCities <- 
+  WorldCities %>% 
+  arrange(desc(population)) %>% 
+  head(4000) %>% 
+  select(longitude, latitude) 
+glimpse(BigCities)
+```
+
+```{r}
+# p. 211
+set.seed(15) 
+city_clusts <- 
+  BigCities %>% 
+  kmeans(centers = 6) %>%
+  fitted("classes") %>%
+  as.character() 
+BigCities <- 
+  BigCities %>% 
+  mutate(cluster = city_clusts) 
+BigCities %>% 
+  ggplot(aes(x = longitude, y = latitude)) + 
+  geom_point(aes(color = cluster), alpha = 0.5)
+```
+## Section 9.2
+
+```{r}
+# p. 212
+Votes %>% 
+  mutate(Vote = factor(vote, labels = c("Nay","Abstain","Aye"))) %>% 
+  ggplot(aes(x = bill, y = name, fill = Vote)) + 
+  geom_tile() + 
+  xlab("Ballot") + 
+  ylab("Member of Parliament") +
+  scale_fill_manual(values = c("darkgray", "white", "goldenrod")) + 
+  scale_x_discrete(breaks = NULL, labels = NULL) + 
+  scale_y_discrete(breaks = NULL, labels = NULL)
+```
+
+### Section 9.2.1
+
+```{r}
+# p. 213
+Votes %>% 
+  filter(bill %in% c("S1M-240.2", "S1M-639.1")) %>% 
+  tidyr::spread(key = bill, value = vote) %>% 
+  ggplot(aes(x = `S1M-240.2`, y = `S1M-639.1`)) + 
+  geom_point(alpha = 0.7, position = position_jitter(width = 0.1, height = 0.1)) +
+  geom_point(alpha = 0.01, size = 10, color = "red" )
+```
+
+```{r}
+# p. 213
+Votes %>% 
+  mutate(set_num = as.numeric(factor(bill)), set = ifelse(set_num < max(set_num) / 2, "First_Half", "Second_Half")) %>% 
+  group_by(name, set) %>% 
+  summarize(Ayes = sum(vote)) %>%
+  tidyr::spread(key = set, value = Ayes) %>% 
+  ggplot(aes(x = First_Half, y = Second_Half)) +
+  geom_point(alpha = 0.7, size = 5)
+```
+
+### Section 9.2.2
+
+```{r}
+# p. 214
+Votes_wide <-
+  Votes %>% 
+   tidyr::spread(key = bill, value = vote)
+vote_svd <- 
+  Votes_wide %>% 
+  select(-name) %>% 
+  svd() 
+voters <- 
+  vote_svd$u[ , 1:5] %>% 
+  as.data.frame() 
+clusts <- 
+  voters %>% 
+  kmeans(centers = 6) 
+voters <- 
+  voters %>% 
+  mutate(cluster = as.factor(clusts$cluster)) 
+ggplot(data = voters, aes(x = V1, y = V2)) + 
+  geom_point(aes(x = 0, y = 0), color = "red", shape = 1, size = 7) + 
+  geom_point(size = 5, alpha = 0.6, aes(color = cluster)) + 
+  xlab("Best Vector from SVD") + 
+  ylab("Second Best Vector from SVD") + 
+  ggtitle("Political Positions of Members of Parliament")
+```
+
+```{r}
+# p. 215
+voters <- 
+  voters %>% 
+  mutate(name = Votes_wide$name) %>% 
+  left_join(Parties, by = c("name" = "name"))
+tally(party ~ cluster, data = voters)
+```
+
+```{r}
+# p. 215
+ballots <- 
+  vote_svd$v[ , 1:5] %>% 
+  as.data.frame() 
+clust_ballots <- 
+  kmeans(ballots, centers = 16)
+ballots <- 
+  ballots %>% 
+  mutate(cluster = as.factor(clust_ballots$cluster), bill = names(Votes_wide)[-1])
+```
+
+```{r}
+# p. 216
+ggplot(data = ballots, aes(x = V1, y = V2)) + 
+  geom_point(aes(x = 0, y = 0), color = "red", shape = 1, size = 7) + 
+  geom_point(size = 5, alpha = 0.6, aes(color = cluster)) + 
+  xlab("Best Vector from SVD") + 
+  ylab("Second Best Vector from SVD") + 
+  ggtitle("Influential Ballots")
+```
+
+```{r}
+# p. 216-217
+Votes_svd <- 
+  Votes %>% 
+  mutate(Vote = factor(vote, labels = c("Nay", "Abstain", "Aye"))) %>% 
+  inner_join(ballots, by = "bill") %>% 
+  inner_join(voters, by = "name") 
+ggplot(data = Votes_svd, aes(x = reorder(bill, V1.x), y = reorder(name, V1.y), fill = Vote)) + 
+  geom_tile() + 
+  xlab("Ballot") + 
+  ylab("Member of Parliament") + 
+  scale_fill_manual(values = c("darkgray", "white", "goldenrod")) + 
+  scale_x_discrete(breaks = NULL, labels = NULL) + 
+  scale_y_discrete(breaks = NULL, labels = NULL)
+```
+
+```{r}
+# p. 217
+Votes_svd %>%
+  arrange(V1.y) %>% 
+  head(1)
+```
+
+```{r}
+# p. 217
+Votes_svd %>% 
+  arrange(V1.y) %>%
+  tail(1)
+```
+

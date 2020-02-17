@@ -1,0 +1,530 @@
+---
+title: "MDSR Chapter 8 Prog Nbk"
+author: "TJ Schaeffer"
+date: "Due: February 17, 2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r echo=TRUE, message=FALSE}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(mosaic)
+library(mosaicData)
+library(rpart)
+library(partykit)
+library(tibble)
+library(class)
+library(e1071)
+library(nnet)
+library(tidyr)
+library(NHANES)
+library(randomForest)
+library(ROCR)
+# user-defined functions here (if any)
+## Creating knn_error-rate functon on p.185 (Section 8.4.2)
+## Creating get_roc function on p. 196 (Section 8.4.6)
+
+# load data
+```
+
+
+# Chapter Notes
+
+## Section 8.1
+
+## Section 8.2
+
+### Section 8.2.1
+
+### Section 8.2.2
+```{r}
+# p. 174
+census <- 
+  read.csv( "http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data",
+header = FALSE) 
+names(census) <- c("age", "workclass", "fnlwgt", "education", "education.num", "marital.status", "occupation", "relationship", "race", "sex", "capital.gain", "capital.loss", "hours.per.week", "native.country", "income")
+glimpse(census)
+```
+
+```{r}
+# p. 175
+set.seed(364) 
+n <- nrow(census) 
+test_idx <- sample.int(n, size = round(0.2 * n))
+train <- census[-test_idx, ] 
+nrow(train)
+
+test <- census[test_idx, ]
+nrow(test)
+```
+
+```{r}
+# p. 175
+tally(~income, data = train, format = "percent")
+```
+
+```{r}
+# p. 176
+rpart(income ~ capital.gain, data = train)
+```
+
+```{r}
+# p. 176
+split <- 5095.5
+train <- train %>% 
+  mutate(hi_cap_gains = capital.gain >= split)
+
+ggplot(data = train, aes(x = capital.gain, y = income)) + 
+  geom_count(aes(color = hi_cap_gains),
+position = position_jitter(width = 0, height = 0.1), alpha = 0.5) + 
+  geom_vline(xintercept = split, color = "dodgerblue", lty = 2) + 
+  scale_x_log10(labels = scales::dollar)
+```
+
+```{r}
+# p. 176
+form <- 
+  as.formula("income ~ age + workclass + education + marital.status + occupation + relationship + race + sex + capital.gain + capital.loss + hours.per.week")
+mod_tree <- rpart(form, data = train) 
+mod_tree
+```
+
+```{r}
+# p. 177
+plot(mod_tree) 
+text(mod_tree, use.n = TRUE, all = TRUE, cex = 0.7)
+```
+
+```{r}
+# p. 178
+plot(as.party(mod_tree))
+```
+
+```{r}
+# p. 179
+train <- 
+  train %>% 
+  mutate(husband_or_wife = relationship %in% c(" Husband", " Wife"), college_degree = husband_or_wife & education %in% 
+           c(" Bachelors", " Doctorate", " Masters", " Prof-school"), income_dtree = predict(mod_tree, type = "class")) 
+
+cg_splits <- data.frame(husband_or_wife = c(TRUE, FALSE),
+vals = c(5095.5, 7073.5))
+
+ggplot(data = train, aes(x = capital.gain, y = income)) + 
+  geom_count(aes(color = income_dtree, shape = college_degree),
+position = position_jitter(width = 0, height = 0.1),
+alpha = 0.5) + 
+  facet_wrap(~ husband_or_wife) + 
+  geom_vline(data = cg_splits, aes(xintercept = vals), color = "dodgerblue", lty = 2) + 
+  scale_x_log10()
+```
+
+```{r}
+# p. 180
+printcp(mod_tree)
+```
+
+```{r}
+# p. 180
+train <- 
+  train %>% 
+  mutate(income_dtree = predict(mod_tree, type = "class")) 
+confusion <- tally(income_dtree ~ income, data = train, format = "count") 
+confusion
+
+sum(diag(confusion)) / nrow(train)
+```
+
+### Section 8.2.3
+```{r}
+# p. 181
+mod_tree2 <- rpart(form, data = train, control = rpart.control(cp = 0.002))
+```
+
+### Section 8.2.4
+```{r}
+# p. 181
+mod_forest <- 
+  randomForest(form, data = train, ntree = 201, mtry = 3) 
+mod_forest
+
+sum(diag(mod_forest$confusion)) / nrow(train)
+```
+
+```{r}
+# p. 182
+importance(mod_forest) %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  arrange(desc(MeanDecreaseGini))
+```
+
+### Section 8.2.5
+```{r}
+# p. 183
+train_q <- 
+  train %>% 
+  select(age, education.num, capital.gain, capital.loss, hours.per.week) 
+income_knn <- knn(train_q, test = train_q, cl = train$income, k = 10)
+
+confusion <- tally(income_knn ~ income, data = train, format = "count") 
+confusion
+
+sum(diag(confusion)) / nrow(train)
+```
+
+```{r}
+# p. 183
+knn_error_rate <- 
+  function(x, y, numNeighbors, z = x) { 
+  y_hat <- knn(train = x, test = z, cl = y, k = numNeighbors) 
+  return(sum(y_hat != y) / nrow(x))
+}
+ks <- c(1:15, 20, 30, 40, 50) 
+train_rates <- sapply(ks, FUN = knn_error_rate, x = train_q, y = train$income)
+knn_error_rates <- 
+  data.frame(k = ks, train_rate = train_rates) 
+ggplot(data = knn_error_rates, aes(x = k, y = train_rate)) + 
+  geom_point() + 
+  geom_line() + 
+  ylab("Misclassification Rate")
+```
+
+### Section 8.2.6
+```{r}
+# p. 184
+head(train, 1)
+```
+
+```{r}
+# p. 185
+mod_nb <- 
+  naiveBayes(form, data = train) 
+income_nb <- 
+  predict(mod_nb, newdata = train) 
+confusion <- 
+  tally(income_nb ~ income, data = train, format = "count") 
+confusion
+
+sum(diag(confusion)) / nrow(train)
+```
+
+### Section 8.2.7
+```{r}
+# p. 185
+mod_nn <- 
+  nnet(form, data = train, size = 5)
+```
+
+```{r}
+# p. 186
+income_nn <- 
+  predict(mod_nn, newdata = train, type = "class")
+confusion <- 
+  tally(income_nn ~ income, data = train, format = "count") 
+confusion
+
+sum(diag(confusion)) / nrow(train)
+```
+
+## Section 8.3
+```{r}
+income_ensemble <- 
+  ifelse((income_knn == " >50K") + 
+           (income_nb == " >50K") + 
+           (income_nn == " >50K") >= 2, " >50K", " <=50K") 
+confusion <- 
+  tally(income_ensemble ~ income, data = train, format = "count")
+confusion
+
+sum(diag(confusion)) / nrow(train)
+```
+
+## Section 8.4
+
+### Section 8.4.1
+
+### Section 8.4.2
+
+### Section 8.4.3
+
+### Section 8.4.4
+```{r}
+# p. 190
+income_probs <- 
+  mod_nb %>% 
+  predict(newdata = train, type = "raw") %>% 
+  as.data.frame() 
+head(income_probs, 3)
+```
+
+```{r}
+# p. 190
+names(income_probs)
+
+tally(~` >50K` > 0.5, data = income_probs, format = "percent")
+```
+
+```{r}
+# p. 190
+tally(~` >50K` > 0.24, data = income_probs, format = "percent")
+```
+
+```{r}
+# p. 190
+pred <- ROCR::prediction(income_probs[,2], train$income) 
+perf <- ROCR::performance(pred, 'tpr', 'fpr') 
+class(perf) 
+```
+
+```{r}
+# p. 191
+perf_df <- data.frame(perf@x.values, perf@y.values) 
+names(perf_df) <- c("fpr", "tpr") 
+roc <- ggplot(data = perf_df, aes(x = fpr, y = tpr)) + 
+  geom_line(color="blue") + 
+  geom_abline(intercept=0, slope=1, lty=3) + 
+  ylab(perf@y.name) + xlab(perf@x.name)
+```
+
+```{r}
+# p. 191
+confusion <- tally(income_nb ~ income, data = train, format = "count") 
+confusion
+
+sum(diag(confusion)) / nrow(train)
+
+tpr <- confusion[" >50K", " >50K"] / sum(confusion[, " >50K"]) 
+fpr <- confusion[" >50K", " <=50K"] / sum(confusion[, " <=50K"]) 
+roc + geom_point(x = fpr, y = tpr, size = 3)
+```
+
+### Section 8.4.5
+```{r}
+# p. 192
+test_q <- 
+  test %>% 
+  select(age, education.num, capital.gain, capital.loss, hours.per.week) 
+test_rates <- sapply(ks, FUN = knn_error_rate, x = train_q, y = train$income, z = test_q) 
+knn_error_rates <- 
+  knn_error_rates %>% 
+  mutate(test_rate = test_rates) 
+knn_error_rates_tidy <- 
+  knn_error_rates %>% 
+  gather(key = "type", value = "error_rate", -k) 
+ggplot(data = knn_error_rates_tidy, aes(x = k, y = error_rate)) + 
+  geom_point(aes(color = type)) + 
+  geom_line(aes(color = type)) + 
+  ylab("Misclassification Rate")
+```
+
+### Section 8.4.6
+```{r}
+# p. 193
+favstats(~ capital.gain, data = train)
+
+favstats(~ capital.gain, data = test)
+```
+
+```{r}
+# p. 193
+mod_null <- glm(income ~ 1, data = train, family = binomial) 
+mods <- list(mod_null, mod_tree, mod_forest, mod_nn, mod_nb)
+```
+
+```{r}
+# p. 193-194
+lapply(mods, class)
+
+predict_methods <- methods("predict") 
+predict_methods[grepl(pattern = "(glm|rpart|randomForest|nnet|naive)",
+predict_methods)]
+```
+
+```{r}
+# p. 194
+
+predictions_train <- data.frame(
+  y = as.character(train$income), 
+  type = "train", 
+  mod_null = predict(mod_null, type = "response"), 
+  mod_tree = predict(mod_tree, type = "class"), 
+  mod_forest = predict(mod_forest, type = "class"), 
+  mod_nn = predict(mod_nn, type = "class"), 
+  mod_nb = predict(mod_nb, newdata = train, type = "class")) 
+predictions_test <- data.frame( 
+  y = as.character(test$income), 
+  type = "test", 
+  mod_null = predict(mod_null, newdata = test, type = "response"), 
+  mod_tree = predict(mod_tree, newdata = test, type = "class"), 
+  mod_forest = predict(mod_forest, newdata = test, type = "class"), 
+  mod_nn = predict(mod_nn, newdata = test, type = "class"), 
+  mod_nb = predict(mod_nb, newdata = test, type = "class"))
+predictions <- bind_rows(predictions_train, predictions_test) 
+glimpse(predictions)
+```
+
+```{r}
+# p. 195
+predictions_tidy <- 
+  predictions %>% 
+  mutate(mod_null = ifelse(mod_null < 0.5, " <=50K", " >50K")) %>% 
+  gather(key = "model", value = "y_hat", -type, -y) 
+glimpse(predictions_tidy)
+```
+
+```{r}
+# p. 195
+
+predictions_summary <- 
+  predictions_tidy %>% 
+  group_by(model, type) %>% 
+  summarise(N = n(), correct = sum(y == y_hat, 0), 
+            positives = sum(y == " >50K"), 
+            true_pos = sum(y_hat == " >50K" & y == y_hat), 
+            false_pos = sum(y_hat == " >50K" & y != y_hat)) %>% 
+  mutate(accuracy = correct / N, 
+         tpr = true_pos / positives, 
+         fpr = false_pos / (N - positives)) %>% 
+  ungroup() %>% 
+  gather(val_type, val, -model, -type) %>% 
+  unite(temp1, type, val_type, sep = "_") %>% 
+  spread(temp1, val) %>% 
+  arrange(desc(test_accuracy)) %>% 
+  select(model, train_accuracy, test_accuracy, test_tpr, test_fpr)
+predictions_summary
+```
+
+```{r}
+# p. 196
+outputs <- c("response", "prob", "prob", "raw", "raw") 
+roc_test <- mapply(predict, mods, type =  outputs, MoreArgs = list(newdata = test)) %>% 
+  as.data.frame() %>% 
+  select(1,3,5,6,8) 
+names(roc_test) <- c("mod_null", "mod_tree", "mod_forest", "mod_nn", "mod_nb") 
+glimpse(roc_test)
+
+
+get_roc <- function(x, y) { 
+  pred <- ROCR::prediction(x$y_hat, y) 
+  perf <- ROCR::performance(pred, 'tpr', 'fpr') 
+  perf_df <- data.frame(perf@x.values, perf@y.values) 
+  names(perf_df) <- c("fpr", "tpr") 
+  return(perf_df)
+}
+
+
+roc_tidy <- 
+  roc_test %>% 
+  gather(key = "model", value = "y_hat") %>% 
+  group_by(model) %>% 
+  dplyr::do(get_roc(., y = test$income))
+```
+
+```{r}
+# p. 196
+ggplot(data = roc_tidy, aes(x = fpr, y = tpr)) + 
+  geom_line(aes(color = model)) + 
+  geom_abline(intercept = 0, slope = 1, lty = 3) + 
+  ylab(perf@y.name) + xlab(perf@x.name) + 
+  geom_point(data = predictions_summary, size = 3, aes(x = test_fpr, y = test_tpr, color = model))
+```
+
+## Section 8.5
+```{r}
+# p. 197
+people <- 
+  NHANES %>% 
+  select(Age, Gender, Diabetes, BMI, HHIncome, PhysActive) %>% 
+  na.omit() 
+glimpse(people)
+
+
+tally(~ Diabetes, data = people, format = "percent")
+```
+
+```{r}
+# p. 197
+whoIsDiabetic <- 
+  rpart(Diabetes ~ Age + BMI + Gender + PhysActive, data = people, control = rpart.control(cp = 0.005, minbucket = 30))
+whoIsDiabetic
+```
+
+```{r}
+# p. 198
+ggplot(data = people, aes(x = Age, y = BMI)) + 
+  geom_count(aes(color = Diabetes), alpha = 0.5) + 
+  geom_vline(xintercept = 52.5) + 
+  geom_segment(x = 52.5, xend = 100, y = 39.985, yend = 39.985) + 
+  geom_segment(x = 67.5, xend = 67.5, y = 39.985, yend = Inf) + 
+  geom_segment(x = 60.5, xend = 60.5, y = 39.985, yend = Inf) + 
+  annotate("rect", xmin = 60.5, xmax = 67.5, ymin = 39.985, ymax = Inf, fill = "blue", alpha = 0.1)
+```
+
+```{r}
+# p. 199
+ages <- range(~ Age, data = people) 
+bmis <- range(~ BMI, data = people) 
+res <- 100 
+fake_grid <- expand.grid(Age = seq(from = ages[1], to = ages[2], length.out = res), BMI = seq(from = bmis[1], to = bmis[2], length.out = res))
+```
+
+```{r}
+# p. 199-200
+form <- as.formula("Diabetes ~ Age + BMI") 
+dmod_tree <- rpart(form, data = people, control = rpart.control(cp = 0.005, minbucket = 30))
+dmod_forest <- randomForest(form, data = people, ntree = 201, mtry = 3) 
+dmod_nnet <- nnet(form, data = people, size = 6)
+
+dmod_nb <- naiveBayes(form, data = people)
+
+pred_tree <- predict(dmod_tree, newdata = fake_grid)[, "Yes"] 
+pred_forest <- predict(dmod_forest, newdata = fake_grid, type = "prob")[, "Yes"] 
+pred_knn <- 
+  people %>% 
+  select(Age, BMI) %>% 
+  knn(test = select(fake_grid, Age, BMI), cl = people$Diabetes, k = 5) %>% 
+  as.numeric() - 1 
+pred_nnet <- 
+  predict(dmod_nnet, newdata = fake_grid, type = "raw") %>% 
+  as.numeric() 
+pred_nb <- predict(dmod_nb, newdata = fake_grid, type = "raw")[, "Yes"]
+```
+
+```{r}
+# p. 200
+p <- tally(~ Diabetes, data = people, format = "proportion")["Yes"]
+```
+
+```{r}
+# p. 200
+res <- 
+  fake_grid %>% 
+  mutate("Null" = rep(p, nrow(fake_grid)), "Decision Tree" = pred_tree, "Random Forest" = pred_forest, "k-Nearest Neighbor" = pred_knn, "Neural Network" = pred_nnet, "Naive Bayes" = pred_nb) %>% 
+  gather(key = "model", value = "y_hat", -Age, -BMI)
+```
+
+```{r}
+# p. 201
+ggplot(data = res, aes(x = Age, y = BMI)) + 
+  geom_tile(aes(fill = y_hat), color = NA) + 
+  geom_count(aes(color = Diabetes), alpha = 0.4, data = people) + 
+  scale_fill_gradient(low = "white", high = "dodgerblue") + 
+  scale_color_manual(values = c("gray", "gold")) + 
+  scale_size(range = c(0, 2)) + 
+  scale_x_continuous(expand = c(0.02,0)) + 
+  scale_y_continuous(expand = c(0.02,0)) + 
+  facet_wrap(~model)
+```
+
+## Section 8.6
+
+## Section 8.7
+

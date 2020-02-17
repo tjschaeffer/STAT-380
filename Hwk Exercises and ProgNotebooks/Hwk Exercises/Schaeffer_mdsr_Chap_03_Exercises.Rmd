@@ -1,0 +1,170 @@
+---
+title: "MDSR Ch. 3 Exercises" 
+author: "TJ Schaeffer"
+date: "Due: January 20, 2019"
+output: html_notebook
+---
+
+
+```{r Front Matter, include=FALSE}
+### Note: `include=FALSE` causes R to run the code, but does not show this chunk in the R Notebook
+# always clean up R environment
+rm(list = ls())
+
+# packages
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(lubridate)
+library(mosaic)
+library(mosaicData)
+library(NHANES)
+library(macleish)
+library(babynames)
+library(Hmisc)
+library(graphics)
+
+# inputs & source data
+data("NHANES")
+data("babynames")
+```
+
+## Figure 3.18
+```{r}
+# Inspect the Data
+NHANES
+
+# Data Wrangling
+NHANES2 <-
+  NHANES %>%
+  select(AgeDecade, BMI_WHO, Diabetes) %>%
+  arrange(AgeDecade)
+
+NHANES2Clean <-
+  NHANES2[- c(1:2766), ]
+
+NHANES2Plot <-
+  mosaicplot(~ AgeDecade + BMI_WHO + Diabetes, data = NHANES2, shade = TRUE, xlab = "AgeDecade")
+```
+
+## Figure 3.27
+
+# part A
+# Inspect the data
+babynames
+
+# Data wrangling
+BabynamesDist <- make_babynames_dist()
+
+# com_fem <- 
+  BabynamesDist %>% 
+  filter(sex == "F") %>% 
+  group_by(name) %>% 
+  summarise( 
+    N = n(), 
+    est_num_alive = sum(est_alive_today), 
+    q1_age = wtd.quantile(age_today, est_alive_today, probs = 0.25),
+    median_age = wtd.quantile(age_today, est_alive_today, probs = 0.5),
+    q3_age = wtd.quantile(age_today, est_alive_today, probs = 0.75)) %>%
+arrange(desc(est_num_alive)) %>%
+  head(25)
+
+w_plot <-
+  ggplot(data = com_fem,
+         aes(x = reorder(name, -median_age), y = median_age)) +
+  xlab(NULL) +
+  ylab("Age (in years)") +
+  ggtitle("Median ages for females with the 25 most common names") 
+
+w_plot <-
+  w_plot +
+  geom_linerange(aes(ymin = q1_age, ymax = q3_age), color = "#f3d478", size = 10, alpha = 0.8)
+
+w_plot <-
+  w_plot +
+  geom_point(fill = "#ed3324", colour = "white", size = 4, shape = 21)
+
+w_plot +
+  geom_point(aes(y = 55, x = 24), fill = "#ed3324", colour = "white", size = 4, shape = 21) +
+  geom_text(aes(y = 58, x = 24, label = "median")) +
+  geom_text(aes(y = 26, x = 16, label = "25th")) +
+  geom_text(aes(y = 51, x = 16, label = "75th percentile")) +
+  geom_point(aes(y = 24, x = 16), shape = 17) +
+  geom_point(aes(y = 56, x = 16), shape = 17) +
+  coord_flip()
+
+```{r}
+# part B
+# Inspect the data
+babynames
+
+# Data wrangling
+BabynamesDist <- make_babynames_dist()
+
+com_fem <- 
+  BabynamesDist %>% 
+  filter(sex == "F", est_alive_today > 0) %>% #Add "est_alive_today > 0" to get rid of NA error
+  group_by(name) %>% 
+  summarise( 
+    N = n(), 
+    est_num_alive = sum(est_alive_today), 
+    q1_age = wtd.quantile(age_today, est_alive_today, probs = 0.25),
+    median_age = wtd.quantile(age_today, est_alive_today, probs = 0.5),
+    q3_age = wtd.quantile(age_today, est_alive_today, probs = 0.75)) %>%
+arrange(desc(est_num_alive)) %>%
+  head(25)
+
+w_plot <-
+  ggplot(data = com_fem,
+         aes(x = reorder(name, -median_age), y = median_age)) +
+  xlab(NULL) +
+  ylab("Age (in years)") +
+  labs(title = "Median ages for females with the 25 most common names", # Changed "ggtitle"" function to "labs" in order to add subtitle and caption
+       subtitle = "Among Americans to be alive as of Jan. 1, 2014",
+       caption = "Source: Social Security Administration")
+
+w_plot <-
+  w_plot +
+  geom_linerange(aes(ymin = q1_age, ymax = q3_age), color = "#f3d478", size = 10, alpha = 0.8)
+
+w_plot <-
+  w_plot +
+  geom_point(fill = "#ed3324", colour = "white", size = 4, shape = 21)
+
+w_plot +
+  geom_point(aes(y = 55, x = 24), fill = "#ed3324", colour = "white", size = 4, shape = 21) +
+  geom_text(aes(y = 58, x = 24, label = "median")) +
+  geom_text(aes(y = 26, x = 16, label = "25th")) +
+  geom_text(aes(y = 51, x = 16, label = "75th percentile")) +
+  geom_point(aes(y = 24, x = 16), shape = 17) +
+  geom_point(aes(y = 56, x = 16), shape = 17) +
+  ylim(15, 75) + # Added y limit
+  coord_flip()
+```
+* Added "est_alive_today > 0" to get rid of NA error
+* Changed "ggtitle"" function to "labs" in order to add subtitle and caption
+* Added y limit
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

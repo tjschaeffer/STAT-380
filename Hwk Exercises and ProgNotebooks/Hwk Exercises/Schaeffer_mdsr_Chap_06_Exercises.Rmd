@@ -1,0 +1,24 @@
+---
+title: "MDSR Chapter 06 Exercises"
+author: "TJ Schaeffer"
+date: "Due: 02/24/2019"
+output: html_notebook
+---
+  
+# Ch. 6 Exercises
+
+## Exercise 6.1
+The ethical guidelines that are violated by creating the six different accounts is illegal access to the content and violating terms of use. Using the illegal data to create a project is stealing and could possibly be followed with consequences with the law. Additionally, people with Twitter accounts never gave the researcher permission to use their tweets, which could cause future ethical violations. A way this could be prevented in the future is by having the emails of the accounts be verified before continuing on with the website.
+
+## Exercise 6.2
+The data set can cause problems with people accessing the data off the web. Although the name and email address were removed, there is still valuable information that people can take from the data set and use to perform illegal tasks such as identity stealing and hacking of devices. Regardless of the situation, the data analyst is most likely best off not posting the data set.
+
+## Exercise 6.6
+An ethical consideration going into using race/ethnicity as a factor in the predictor model include whether the study would make a certain race/ethnicity look worse, which could diminish the credibility of the model and lead people to believe that the creators are discriminatory. Additionally, you could consider using race/ethnicity to figure out which races need help. Overall, the best option would be to leave out race/ethnicity to prevent future problems that could arise from using the valuable information.
+
+## Exercise 6.7
+This would not be considered ethical because the schools have a advantage over the students that know where they want to go to school. If a students becomes very interested and verbally committed to a school, the school won't have to worry about giving that particular student financial aid because that student most likely will attend regardless (unless the financial situation is incredibly poor) compared to someone who might be on the border between schools. Having that advantage over the students puts the financially-competent students in possible ethical complications, as they might change numbers around on their FASFAs in order to get more money.
+
+## Exercise 6.9
+For a person who willfully and knowingly discloses protected information to unauthorized persons, that person would receive a felony along with possible imprisonment and/or having to pay a substantial fine.
+  

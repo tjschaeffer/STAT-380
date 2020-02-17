@@ -1,0 +1,500 @@
+---
+title: "Academic Advising Simulator Project"
+author: "TJ Schaeffer"
+date: "Due: 03/31/2019"
+output: html_notebook
+---
+
+
+```{r Front Matter, include=FALSE}
+### Note: `include=FALSE` causes R to run the code, but does not show this chunk in the R Notebook
+# always clean up R environment
+rm(list = ls())
+
+# packages
+library(mosaic)
+library(tidyverse)
+
+# inputs & source data
+
+
+# user-defined functions
+  # any_active
+  # next_customer
+  # update_customer
+  # run_sim
+
+```
+
+
+# Project tasks
+
+*Many academic departments have walk-in academic advising during busy periods in the semester (e.g., Drop/Add week).  The Department of Statistics currently has one academic advisor on staff.  We are interested in using simulation to understand how long students are likely to wait for walk-in advising during these busy periods.  Furthermore, the head of the statistics department would like to understand the potential impact if it were possible to hire a second advisor to assist during those periods.*
+
+
+# Part 1. Bank teller simulation.
+
+*In programming, it's often a good idea to start with some working code that accomplishes a similar task, and then make small modifications until we have accomplished our goal.  We will adopt this philosophy and begin with a working example from the Bank Teller simulation discussed in class.*
+
+**Task 1.1 Reproduce the Bank Teller simulation here exactly as it is described in your MDSR textbook (p. 232 & 233).**
+
+```{r}
+any_active <- function(df) { # return TRUE if someone has not finished 
+  return(max(df$endtime) == Inf)
+}
+next_customer <- function(df) { # returns the next customer in line 
+  res <- filter(df, endtime == Inf) %>%
+arrange(arrival) 
+  return(head(res, 1))
+}
+update_customer <- function(df, cust_num, end_time) { # sets the end time of a specific customer 
+  return(mutate(df, endtime = 
+                  ifelse(custnum == cust_num, end_time, endtime)))
+}
+
+
+run_sim <- function(n = 1/2, m = 3/2, hours = 6) { 
+  # simulation of bank where there is just one teller 
+  # n: expected number of customers per minute 
+  # m: expected length of transaction is m minutes 
+  # hours: bank open for this many hours
+  customers <- rpois(hours * 60, lambda = n) 
+  arrival <- numeric(sum(customers)) 
+  position <- 1 
+  for (i in 1:length(customers)) {
+    numcust <- customers[i] 
+    if (numcust != 0) {
+      arrival[position:(position + numcust - 1)] <- rep(i, numcust) 
+      position <- position + numcust
+    }
+  }
+  duration <- rexp(length(arrival), rate = 1/m)	# E[X]=m 
+  df <- data.frame(arrival, duration, custnum = 1:length(duration), 
+                 endtime = Inf, stringsAsFactors = FALSE)
+  
+  endtime <- 0 # set up beginning of simulation 
+  while (any_active(df)) { # anyone left to serve?
+    next_one <- next_customer(df) 
+    now <- ifelse(next_one$arrival >= endtime, next_one$arrival, endtime)
+    endtime <- now + next_one$duration 
+    df <- update_customer(df, next_one$custnum, endtime)
+  }
+  df <- mutate(df, totaltime = endtime - arrival) 
+  return(favstats(~ totaltime, data = df))
+}
+
+sim_results <- do(3) * run_sim() 
+sim_results
+```
+
+
+**Task 1.2 Clearly explain what this portion of the provided code does (in the context of customers visiting a teller at a bank)?  Specifically, remark on (A) what is represented by the index, `i`, that is looped over; (B) what is included in each element of the `customers` object; (C) what does `numcust != 0` mean; (D) what is included in each element of the `arrival` object.**
+
+```
+  for (i in 1:length(customers)) {
+    numcust <- customers[i]
+    if (numcust != 0) {
+      arrival[position:(position + numcust - 1)] <- rep(i, numcust)
+      position <- position + numcust
+    }
+  }
+
+```
+
+A. The minute of the day
+B. Number of customers that enter that minute
+C. When there is not zero customers in the store at a specific minute (based on the index)
+D. Total number of customers that enter the bank and their position in line
+
+
+
+
+
+**Task 1.3 Use `mosaic::do()` to repeat the simulation at least 20 times, and then store the summary statistics of `totaltime` from each run of your Bank Teller simulation. (Note: don't be surprised if you have to wait at least 20-30 seconds, depending on your computer)**
+```{r}
+sim_results2 <- mosaic::do(20) * run_sim()
+```
+
+
+
+
+
+
+**Task 1.4 Show the summary statistics corresponding to the 6 iterations of your Bank Teller simulation with the longest MAXIMUM wait time of any customer.**
+```{r}
+sim_results2 %>%
+  arrange(desc(max)) %>%
+  head(6)
+```
+
+
+
+
+
+
+
+**Task 1.5 Show the summary statistics corresponding to the 6 iterations of your Bank Teller simulation with the longest average wait time.**
+```{r}
+sim_results2 %>%
+  arrange(desc(mean)) %>%
+  head(6)
+```
+
+
+
+
+
+
+
+
+**Task 1.6 Use the following `arrival` and `duration` data to verify the outcome shown as evidence that your teller simulation code works properly:**
+
+- **`arrival <- c(1, 3, 7, 10, 11, 15)`**
+- **`duration <- c(3, 2, 5, 6, 8, 1)`**
+- **Outcome: show that your approach results in `totaltime` of 3, 3, 5, 8, 15, and 12 respectively**
+- **Note: the previous bank teller simulation both simulates customers AND the teller who serves them.  Just extract the "teller" portion of the code to verify that it is working properly, and then show `totaltime` directly.**
+
+```{r}
+arrival <- c(1, 3, 7, 10, 11, 15)
+duration <- c(3, 2, 5, 6, 8, 1)
+
+
+df <- data.frame(arrival, duration, custnum = 1:length(duration), 
+                 endtime = Inf, stringsAsFactors = FALSE)
+
+endtime <- 0 # set up beginning of simulation 
+  while (any_active(df)) { # anyone left to serve?
+    next_one <- next_customer(df) 
+    now <- ifelse(next_one$arrival >= endtime, next_one$arrival, endtime)
+    endtime <- now + next_one$duration 
+    df <- update_customer(df, next_one$custnum, endtime)
+  }
+ df <- mutate(df, totaltime = endtime - arrival)
+ df$totaltime
+```
+
+
+
+
+
+
+# Part 2. Academic advisor simulation
+
+*Now that you are confident that your Bank Teller simulation is working properly, we will modify it to simulate the context of academic advising as described previously.*  
+
+
+**Task 2.1 Describe how you would interpret each of the following elements from our bank teller simulation in the context of the academic advising simulation:**
+
+A. **Bank teller**: Academic Advisor 
+B. **Bank customer**:  Student
+C. **`hours`**:  Hours of operation for the advisors in office
+D. **`n`**:  Amount of students served
+E. **`m`**:  Total wait time
+
+
+
+**Task 2.2 Show how you would modify the teller simulation to simulate an academic advisor under the following conditions:** 
+
+- **6.5 hours of walk-in advising each day during Drop/Add week;** 
+- **we expect one a new student to arrive every 12 minutes, on average;**
+- **we expect each of the walk-in advising appointments to last about 10 minutes on average.**
+```{r}
+any_active <- function(df) { # return TRUE if someone has not finished 
+  return(max(df$endtime) == Inf)
+}
+next_student <- function(df) { # returns the next student in line 
+  res <- filter(df, endtime == Inf) %>%
+arrange(arrival) 
+  return(head(res, 1))
+}
+update_student <- function(df, stud_num, end_time) { # sets the end time of a specific student 
+  return(mutate(df, endtime = 
+                  ifelse(studnum == stud_num, end_time, endtime)))
+}
+
+
+run_stud <- function(n = 1/12, m = 10, hours = 6.5) { 
+  # simulation of bank where there is just one advisor
+  # n: expected number of students per minute 
+  # m: expected length of transaction is m minutes 
+  # hours: bank open for this many hours
+  students <- rpois(hours * 60, lambda = n) 
+  arrival <- numeric(sum(students)) 
+  position <- 1 
+  for (i in 1:length(students)) {
+    numstud <- students[i] 
+    if (numstud != 0) {
+      arrival[position:(position + numstud - 1)] <- rep(i, numstud) 
+      position <- position + numstud
+    }
+  }
+  duration <- rexp(length(arrival), rate = 1/m)	# E[X]=m 
+  df <- data.frame(arrival, duration, studnum = 1:length(duration), 
+                 endtime = Inf, stringsAsFactors = FALSE)
+  
+  endtime <- 0 # set up beginning of simulation 
+  while (any_active(df)) { # anyone left to serve?
+    next_one <- next_student(df) 
+    now <- ifelse(next_one$arrival >= endtime, next_one$arrival, endtime)
+    endtime <- now + next_one$duration 
+    df <- update_student(df, next_one$studnum, endtime)
+  }
+  df <- mutate(df, totaltime = endtime - arrival) 
+  return(favstats(~ totaltime, data = df))
+}
+
+stud_results <- do(3) * run_stud() 
+stud_results
+```
+
+
+
+
+
+
+**Task 2.3 Use the following `arrival` and `duration` data to verify the outcome shown as evidence that your academic advisor simulation code works properly:**
+
+- **`arrival <- c(7, 42, 49, 54, 55)`**
+- **`duration <- c(20, 11, 15, 31, 7)`**
+- **Outcome: show that your approach results in `totaltime` of 20, 11, 19, 45, and 51 respectively**
+```{r}
+arrival <- c(7, 42, 49, 54, 55)
+duration <- c(20, 11, 15, 31, 7)
+  df2 <- data.frame(arrival, duration, studnum = 1:length(duration), 
+                 endtime = Inf, stringsAsFactors = FALSE)
+endtime <- 0 # set up beginning of simulation 
+  while (any_active(df2)) { # anyone left to serve?
+    next_one <- next_student(df2) 
+    now <- ifelse(next_one$arrival >= endtime, next_one$arrival, endtime)
+    endtime <- now + next_one$duration 
+    df2 <- update_student(df2, next_one$studnum, endtime)
+  }
+  df2 <- mutate(df2, totaltime = endtime - arrival) 
+  df2$totaltime
+```
+
+
+
+
+
+
+**Task 2.4 Use `mosaic::do()` to repeat the simulation at least 20 times, and then store the summary statistics of `totaltime` from each run of your walk-in advising simulation. (Note: don't be surprised if you have to wait at least 20-30 seconds, depending on your computer)**
+```{r}
+stud_results2 <- mosaic::do(80) * run_stud()
+```
+
+
+
+
+
+
+
+**Task 2.5 Show the summary statistics corresponding to the 6 iterations of your walk-in advising simulation in which the advisor served the MOST STUDENTS in a day (i.e., 6.5 hour period).**
+```{r}
+stud_results2 %>%
+  arrange(desc(n)) %>%
+  head(6)
+```
+
+
+
+
+
+
+
+**Task 2.6 Show a density plot of the third quartile of `totaltime` among simulated walk-in advising shifts.  Add a "rug plot" to show the actual simulated outcomes observed in the margin of your plot.  Be sure to use good plotting practices.**
+```{r}
+stud_results2 %>%
+  ggplot(aes(x = Q3)) +
+  geom_density(fill = 'black') +
+  geom_rug()
+```
+
+
+
+
+
+
+
+
+# Part 3. Adding a second advisor.
+
+*Now that we understand the simulation and have translated it to the context of walk-in academic advising, we want to study the impact of adding a second walk-in advisor during busy periods like Drop/Add week at the beginning of the semester.*
+
+
+**Task 3.1 You will need to modify the code from Part 2 in order to introduce a second academic advisor.  Use the following `arrival` and `duration` data to verify the outcome shown as evidence that you have successfully implemented a second academic advisor helping students in parallel on a first-come, first-served basis:**
+
+- **`arrival <- c(7, 42, 49, 54, 55)`**
+- **`duration <- c(20, 11, 15, 31, 7)`**
+- **Outcome: show that your approach results in `totaltime` of 20, 11, 15, 31, and 16, respectively**
+```{r}
+arrival <- c(7, 42, 49, 54, 55)
+duration <- c(20, 11, 15, 31, 7)
+df3 <- data.frame(arrival, duration, studnum = 1:length(duration), 
+                 endtime = Inf, stringsAsFactors = FALSE)
+endtime1 <- 0
+endtime2 <- 0 # set up beginning of simulation 
+
+  while (any_active(df3)) {# anyone left to serve?
+    next_one <- next_student(df3) 
+    if (next_one$arrival >= endtime1) {
+      endtime1 <- next_one$arrival + next_one$duration
+      df3 <- update_student(df3, next_one$studnum, endtime1)
+    }
+    else if(next_one$arrival < endtime1 & next_one$arrival >= endtime2) {
+    endtime2 <- next_one$arrival + next_one$duration
+    df3 <- update_student(df3, next_one$studnum, endtime2)
+  } else {
+    endtime3 <- min(endtime1, endtime2) + next_one$duration
+    df3 <- update_student(df3, next_one$studnum, endtime3)
+  }
+}
+df3 <- mutate(df3, totaltime = endtime - arrival)
+df3$totaltime
+```
+
+
+
+
+
+
+**Task 3.2 Breifly describe a bullet list of the changes that you made in order to incorporate a second academic advisor.  **
+* Changed data frame 
+* Added a second endtime to represent the wait time with the second advisor
+* Added a if/else statement to represent total time
+
+
+
+
+
+**Task 3.3 Use `mosaic::do()` to repeat the simulation at least 20 times, and then store the summary statistics of `totaltime` from each run of your walk-in advising simulation with TWO academic advisors helping students in parallel on a first-come, first-served basis.**
+```{r}
+# Repeated code needed for 3.3
+any_active <- function(df3) { # return TRUE if someone has not finished 
+  return(max(df3$endtime) == Inf)
+}
+next_student <- function(df3) { # returns the next student in line 
+  res <- filter(df3, endtime == Inf) %>%
+arrange(arrival) 
+  return(head(res, 1))
+}
+update_student <- function(df3, stud_num, end_time) { # sets the end time of a specific student 
+  return(mutate(df3, endtime = 
+                  ifelse(studnum == stud_num, end_time, endtime)))
+}
+
+
+run_stud2 <- function(n = 1/12, m = 10, hours = 6.5) { 
+  students <- rpois(hours * 60, lambda = n) 
+  arrival <- numeric(sum(students)) 
+  position <- 1 
+  for (i in 1:length(students)) {
+    numstud <- students[i] 
+    if (numstud != 0) {
+      arrival[position:(position + numstud - 1)] <- rep(i, numstud) 
+      position <- position + numstud
+    }
+  }
+  duration <- rexp(length(arrival), rate = 1/m)	# E[X]=m 
+  df3 <- data.frame(arrival, duration, studnum = 1:length(duration), 
+                 endtime = Inf, stringsAsFactors = FALSE)
+  endtime1 <- 0
+  endtime2 <- 0 # set up beginning of simulation 
+
+  while (any_active(df3)) {# anyone left to serve?
+    next_one <- next_student(df3) 
+    if (next_one$arrival >= endtime1) {
+      endtime1 <- next_one$arrival + next_one$duration
+      df3 <- update_student(df3, next_one$studnum, endtime1)
+    }
+    else if(next_one$arrival < endtime1 & next_one$arrival >= endtime2) {
+    endtime2 <- next_one$arrival + next_one$duration
+    df3 <- update_student(df3, next_one$studnum, endtime2)
+  } else {
+    endtime3 <- min(endtime1, endtime2) + next_one$duration
+    df3 <- update_student(df3, next_one$studnum, endtime3)
+    }
+  }
+  df3 <- mutate(df3, totaltime = endtime - arrival) 
+  return(favstats(~ totaltime, data = df3))
+}
+
+stud_results3 <- do(80) * run_stud2() 
+stud_results3
+```
+
+
+
+
+
+
+
+**Task 3.4 Show the summary statistics corresponding to the 6 iterations of your walk-in advising simulation in which the TWO advisors served the MOST STUDENTS in a day (i.e., 6.5 hour period).**
+```{r}
+stud_results3 %>%
+  arrange(desc(n)) %>%
+  head(6)
+```
+
+
+
+
+
+
+
+**Task 3.5 Show a density plot of the third quartile of `totaltime` among simulated walk-in advising shifts with TWO academic advisors working in parallel.  Add a "rug plot" to show the actual simulated outcomes observed in the margin of your plot.  Be sure to use good plotting practices.**
+```{r}
+stud_results3 %>%
+  ggplot(aes(x = Q3)) +
+  geom_density(fill = 'pink') +
+  geom_rug()
+```
+
+
+
+
+
+
+
+# Part 4. Observations
+
+
+**Task 4.1 Use the following information to update the number of simulations in your study above.  No need to show results here, the updated simulation quantity above is sufficient.**
+
+*Before sharing observations... it would be helpful to have a LOT more than 20 simulations.  A few simple commands can be used like a timer in order to predict how long it will take you to run your simulations.  For example, you could do a "small" one that takes a few seconds like we did earlier and then repeat a couple times for slightly larger volume of simulations (e.g., 40 & 80).  Now you have three data points which will (hopefully) verify that the time required increasing more or less linearly.  Now you can extrapolate how many simulations you want to run in some amount of time... 15 minutes? an hour?? more???  If you intend to cite specific simulation results when you share observations below, make sure you use `set.seed` appropriately in your project.*
+
+```{r}
+# calculate computing time for 20 sims
+ptm <- Sys.time()
+testing <- two_advisor_results <- mosaic::do(20) * run_stud2()
+Sys.time() - ptm
+
+# calculate computing time for 40 sims
+ptm <- Sys.time()
+testing <- two_advisor_results <- mosaic::do(40) * run_stud2()
+Sys.time() - ptm
+
+# calculate computing time for 80 sims
+ptm <- Sys.time()
+testing <- two_advisor_results <- mosaic::do(80) * run_stud2()
+Sys.time() - ptm
+
+
+```
+
+
+
+
+**Task 4.2 Compare your simulation results to make a recommendation to the Department Head about whether or not there would be much benefit if she hires a second academic advisor during Drop/Add weeks.** 
+Hiring a second advisor would be incredibly beneficial because it would take less average time to get through the students that would need help compared with having one advisor. 
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,417 @@
+---
+title: "MDSR Chapter 15 Prog Nbk"
+author: "TJ Schaeffer"
+date: "Due: April 7th, 2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r echo=TRUE, message=FALSE}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(mosaic)
+library(mosaicData)
+library(tidyr)
+library(stringr)
+library(aRxiv)
+library(lubridate)
+library(tm)
+library(wordcloud)
+library(rvest)
+library(methods)
+library(twitteR)
+library(RSQLite)
+library(ggmap)
+# user-defined functions here (if any)
+
+# load data
+data(Macbeth_raw) # p. 355
+data("DataSciencePapers") # p. 361
+```
+
+
+# Chapter Notes
+
+## Section 15.1
+
+### Section 15.1.1
+```{r}
+# p. 355
+macbeth_url <- "http://www.gutenberg.org/cache/epub/1129/pg1129.txt" 
+Macbeth_raw <- RCurl::getURL(macbeth_url)
+```
+
+```{r}
+# p. 355
+data(Macbeth_raw)
+```
+
+```{r}
+# p. 356
+# strsplit returns a list: we only want the first element
+macbeth <- strsplit(Macbeth_raw, "\r\n")[[1]]
+length(macbeth)
+```
+
+```{r}
+# p. 356
+macbeth[300:310]
+```
+
+```{r}
+# p. 356
+macbeth_lines <- grep(" MACBETH", macbeth, value = TRUE) 
+length(macbeth_lines)
+head(macbeth_lines)
+```
+
+```{r}
+# p. 357
+length(grep("  MACDUFF", macbeth))
+```
+
+```{r}
+# p. 357
+length(grep("  MACBETH", macbeth))
+
+length(grepl("  MACBETH", macbeth))
+```
+
+```{r}
+# p. 357
+identical(macbeth[grep(" MACBETH", macbeth)],
+          macbeth[grepl(" MACBETH", macbeth)])
+```
+
+```{r}
+# p. 357
+pattern <- " MACBETH" 
+grep(pattern, macbeth, value = TRUE) %>%
+  str_extract(pattern) %>% 
+  head()
+```
+
+```{r}
+# p. 358
+head(grep("MAC.", macbeth, value = TRUE))
+
+head(grep("MACBETH\\.", macbeth, value = TRUE))
+```
+
+```{r}
+# p. 358
+head(grep("MAC[B-Z]", macbeth, value = TRUE))
+```
+
+```{r}
+# p. 358
+head(grep("MAC(B|D)", macbeth, value = TRUE))
+```
+
+```{r}
+# p. 359
+head(grep("^ MAC[B-Z]", macbeth, value = TRUE))
+```
+
+```{r}
+# p. 359
+head(grep("^ ?MAC[B-Z]", macbeth, value = TRUE))
+
+head(grep("^ *MAC[B-Z]", macbeth, value = TRUE))
+
+head(grep("^ +MAC[B-Z]", macbeth, value = TRUE))
+```
+
+### Section 15.1.2
+```{r}
+# p. 360
+Macbeth <- grepl(" MACBETH\\.", macbeth)
+LadyMacbeth <- grepl(" LADY MACBETH\\.", macbeth) 
+Banquo <- grepl(" BANQUO\\.", macbeth) 
+Duncan <- grepl(" DUNCAN\\.", macbeth)
+```
+
+```{r}
+# p. 360
+speaker_freq <- data.frame(Macbeth, LadyMacbeth, Banquo, Duncan) %>%
+  mutate(line = 1:length(macbeth)) %>%
+  gather(key = "character", value = "speak", -line) %>% 
+  mutate(speak = as.numeric(speak)) %>%
+  filter(line > 218 & line < 3172)
+glimpse(speaker_freq)
+```
+
+```{r}
+# P. 360
+acts_idx <- grep("^ACT [I|V]+", macbeth)
+acts_labels <- str_extract(macbeth[acts_idx], "^ACT [I|V]+")
+acts <- data.frame(line = acts_idx, labels = acts_labels)
+```
+
+```{r}
+# P. 360
+ggplot(data = speaker_freq, aes(x = line, y = speak)) + 
+  geom_smooth(aes(color = character), method = "loess", se = 0, span = 0.4) +
+  geom_vline(xintercept = acts_idx, color = "darkgray", lty = 3) + 
+  geom_text(data = acts, aes(y = 0.085, label = labels),
+            hjust = "left", color = "darkgray") + 
+  ylim(c(0, NA)) + 
+  xlab("Line Number") + 
+  ylab("Proportion of Speeches")
+```
+
+## Section 15.2
+```{r}
+# p. 361
+DataSciencePapers <- arxiv_search(query = '"Data Science"', limit = 200)
+```
+
+```{r}
+# p. 361
+data("DataSciencePapers")
+```
+
+```{r}
+# p. 361
+head(DataSciencePapers)
+```
+
+```{r}
+# p. 362
+DataSciencePapers <- DataSciencePapers %>%
+  mutate(submitted = ymd_hms(submitted), 
+         updated = ymd_hms(updated)) 
+glimpse(DataSciencePapers)
+```
+
+```{r}
+# p. 362
+tally(~ year(submitted), data = DataSciencePapers)
+```
+
+```{r}
+# p. 362
+DataSciencePapers %>% 
+  filter(year(submitted) == 2007) %>% 
+  glimpse()
+```
+
+```{r}
+# p. 363
+tally(~ primary_category, data = DataSciencePapers)
+```
+
+```{r}
+# p. 363
+DataSciencePapers %>% 
+  mutate(field = str_extract(primary_category, "^[a-z,-]+")) %>% 
+  tally(x = ~field) %>% 
+  sort()
+```
+
+### Section 15.2.1
+```{r}
+# p. 364
+Corpus <- with(DataSciencePapers, VCorpus(VectorSource(abstract))) 
+Corpus[[1]] %>%
+  as.character() %>% 
+  strwrap()
+```
+
+```{r}
+# p. 364
+Corpus <- Corpus %>% 
+  tm_map(stripWhitespace) %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(content_transformer(tolower)) %>%
+  tm_map(removeWords, stopwords("english"))
+strwrap(as.character(Corpus[[1]]))
+```
+
+### Section 15.2.2
+```{r}
+# p.365
+wordcloud(Corpus, max.words = 30, scale = c(8, 1),
+          colors = topo.colors(n = 30), random.color = TRUE)
+```
+
+### Setion 15.2.3
+```{r}
+# p. 366
+DTM <- DocumentTermMatrix(Corpus, control = list(weighting = weightTfIdf)) 
+DTM
+```
+
+```{r}
+# p. 366
+findFreqTerms(DTM, lowfreq = 0.8)
+```
+
+```{r}
+# p. 367
+DTM %>% 
+  as.matrix() %>% 
+  apply(MARGIN = 2, sum) %>% 
+  sort(decreasing = TRUE) %>% 
+  head(9)
+```
+
+```{r}
+# p. 367
+findAssocs(DTM, terms = "statistics", corlimit = 0.5)
+
+findAssocs(DTM, terms = "mathematics", corlimit = 0.5)
+```
+
+## Section 15.3
+
+### Section 15.3.1
+```{r}
+# p. 367-368
+url <- "http://en.wikipedia.org/wiki/List_of_songs_recorded_by_the_Beatles" 
+tables <- url %>%
+  read_html() %>%
+  html_nodes(css = "table") 
+songs <- html_table(tables[[4]])
+glimpse(songs)
+```
+
+```{r}
+# p. 368
+songs <- songs %>% 
+  mutate(Song = gsub('\\"', "", Song), Year = as.numeric(Year)) %>% 
+  rename(songwriters = `Songwriter(s)`)
+```
+
+```{r}
+# p. 368
+tally(~songwriters, data = songs) %>%
+  sort(decreasing = TRUE) %>% 
+  head()
+```
+
+```{r}
+# p. 368
+length(grep("McCartney", songs$songwriters))
+
+length(grep("Lennon", songs$songwriters))
+```
+
+```{r}
+# p. 369
+length(grep("(McCartney|Lennon)", songs$songwriters))
+```
+
+```{r}
+# p. 369
+length(grep("(McCartney|Lennon).*(McCartney|Lennon)", songs$songwriters))
+```
+
+```{r}
+# p. 369
+songs %>% 
+  filter(grepl("(McCartney|Lennon).*(McCartney|Lennon)", songwriters)) %>% 
+  select(Song) %>% 
+  head()
+```
+
+```{r}
+# p. 369
+song_titles <- VCorpus(VectorSource(songs$Song)) %>%
+  tm_map(removeWords, stopwords("english")) %>%
+  DocumentTermMatrix(control = list(weighting = weightTfIdf))
+findFreqTerms(song_titles, 15)
+```
+
+### Section 15.3.2
+```{r}
+# p. 370
+setup_twitter_oauth(consumer_key = "u2UthjbK6YHyQSp4sPk6yjsuV",
+                    consumer_secret = "sC4mjd2WME5nH1FoWeSTuSy7JCP5DHjNtTYU1X6BwQ1vPZ0j3v",
+                    access_token = "1365606414-7vPfPxStYNq6kWEATQlT8HZBd4G83BBcX4VoS9T",
+                    access_secret = "0hJq9KYC3eBRuZzJqSacmtJ4PNJ7tNLkGrQrVl00JHirs")
+```
+
+```{r}
+# p. 370
+tweets <- searchTwitter("#datascience", lang = "en", n = 1000, 
+                        retryOnRateLimit = 100)
+class(tweets) 
+class(tweets[[1]])
+```
+
+```{r}
+# p. 370
+tweet_df <- twListToDF(tweets) %>% as.tbl()
+tweet_df %>%
+  select(text) %>% 
+  head()
+```
+
+```{r}
+# p. 370
+ggplot(data = tweet_df, aes(x = nchar(text))) +
+  geom_density(size = 2) + 
+  geom_vline(xintercept = 140) +
+  scale_x_continuous("Number of Characters")
+```
+
+```{r}
+# p. 370
+tweet_df %>% 
+  filter(nchar(text) > 140) %>% 
+  select(text)
+```
+
+```{r}
+# p. 371
+ggplot(data = tweet_df, aes(x = retweetCount)) +
+  geom_density(size = 2)
+```
+
+```{r}
+# p. 372
+tweet_df %>% filter(!is.na(longitude))
+```
+
+```{r}
+# p. 372
+tweet_db <- tempfile()
+register_sqlite_backend(tweet_db)
+store_tweets_db(tweets)
+```
+
+```{r}
+# p. 373
+tweets_src <- src_sqlite(tweet_db) 
+old_tweets <- tweets_src %>% tbl("tweets")
+glimpse(old_tweets)
+```
+
+```{r}
+# p. 373
+big_data_tweets <- old_tweets %>% 
+  collect() %>% 
+  filter(grepl("#bigdata", text))
+nrow(big_data_tweets) / nrow(collect(old_tweets))
+```
+
+```{r}
+# p. 373-374
+lon = -72.6 
+lat =  42.3
+closestTrendLocations(lat = lat, long = lon)
+```
+
+```{r}
+# p. 374
+head(getTrends(2458410))
+```
+

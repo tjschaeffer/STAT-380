@@ -1,0 +1,227 @@
+---
+title: "Bike Sharing and Local Weather Investigation"
+author: "TJ Schaeffer"
+date: "Due: 01/27/2019"
+output: html_notebook
+---
+
+
+```{r Front Matter, include=FALSE}
+### Note: `include=FALSE` causes R to run the code, but does not show this chunk in the R Notebook
+# always clean up R environment
+rm(list = ls())
+
+# packages
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(lubridate)
+library(mosaic)
+library(mosaicData)
+library(NHANES)
+library(macleish)
+library(babynames)
+library(Hmisc)
+
+# inputs & source data
+
+
+```
+
+
+# Project tasks
+
+## 1. Data Access 
+
+You will work with data on bike sharing in Washington D.C. available here (<http://www.stat.berkeley.edu/users/nolan/data/bikeshare.txt>).  **Read the data set into an object called `Bike` directly from the URL (don't download it).** The table below breifly describes each variable in the `Bike` data:
+
+
+| Variable | Description |
+|:---------|:---------------------------------------------------|
+|  instant |  record index |
+|  dteday  |  date |
+|  season  |  season {1 = spring; 2 = summer; 3 = fall; 4 = winter}  |
+|  yr  |  year {0 = 2011; 1 = 2012} |
+|  mnth  |  month ( 1 to 12) |
+|  hr  |  hour (0 to 23) |
+|  holiday  |  whether day is holiday or not  |
+|  weekday  |  day of the week |
+|  workingday  |  if day is neither weekend nor holiday |
+|  weathersit  | weather {1 = Clear or partly cloudy; 2 = Mist + clouds; 3 = Light Snow or Rain; 4 = Heavy Rain or Snow} |
+|  temp  |  Normalized temperature in Celsius (divided by 41)  |
+|  atemp |  Normalized feeling temperature in Celsius (divided by 50) |
+|  hum |  Normalized percent humidity (divided by 100) |
+|  windspeed |  Normalized wind speed (divided by 67) |
+|  casual |  count of casual users |
+|  registered |  count of registered users |
+|  cnt |  count of total rental bikes including casual and registered |
+
+```{r}
+Bike <- read.csv("http://www.stat.berkeley.edu/users/nolan/data/bikeshare.txt")
+Bike
+```
+
+
+
+
+## 2. Data Preparation
+
+You'll need to clean up a few variables before going much further. In particular, 
+
+- `dteday` should be a date
+- create `newDate` as a datetime variable that includes both `dteday` and `hr` information
+- `weekday` should show the name of the day (e.g., Sunday, Monday, ...)
+- `workingday` should be a factor with labels "Yes" and "No"
+- `holiday` should be a factor with labels "Yes" and "No" 
+
+```{r}
+BikeClean <-
+  Bike %>%
+  mutate(dteday = ymd(dteday), 
+         weekday = weekdays(dteday), 
+         workingday = ifelse(workingday == 0, "No", "Yes"), 
+         holiday = ifelse(holiday == 0, "No", "Yes")) %>%
+  unite(newDate, 2, 6, sep = " - ")
+
+BikeClean
+```
+
+
+## 3. Exploring the Distribution of Riders
+
+**3.1 Begin by comparing the distribution of the counts of casual and registered riders using a "quantile-quantile plot" (i.e. qq plot).**
+```{r}
+  qqplot(x = BikeClean$casual,
+         y = BikeClean$registered,
+         main = "Distribution of Casual vs Registered",
+         xlab = "Casual Riders",
+         ylab = "Registered Riders")
+
+```
+
+
+
+
+**3.2 What does the qq plot tell you about the similarities and differences between these two distributions?**
+The line has a constant slope, which means that the distributions are fairly similiar. However, there are more riders in the registered riders distribution than the casual riders distribution.
+
+
+
+**3.3 Next, overlay density curves for casual and registered users.  Explain your insights comparing this plot to the qq plot.**
+```{r}
+BikeClean %>%
+  ggplot(aes(x = casual)) +
+  geom_density(fill = "Green") +
+  geom_density(aes(x = registered), fill = "pink") +
+  ggtitle("Density Curves of Casual and Registered Riders")
+```
+This plot confirms that there are more registered riders than casual riders.
+
+
+
+**3.4 Make another plot that examines the distribution of the counts of riders.  Explain your insights comparing this plot to the qq plot and overlaid densities.**
+```{r}
+BikeClean %>%
+  ggplot(aes(x = casual)) +
+  geom_density(fill = "Green", alpha = 0.2) +
+  geom_density(aes(x = registered), fill = "pink", alpha = 0.2) +
+  geom_density(aes(x = cnt), fill = "Purple", alpha = 0.2) +
+  ggtitle("Distribution of the counts of riders")
+```
+This plot shows that the total count of riders is greater than the total count of casual riders, which means that the total count is largely based off the registered riders count.
+
+
+## 4. Exploring Ride Sharing and Time
+
+**4.1 Use `newDate` to make a line plot for the number of casual riders and overlay a line plot for the number of registered riders. Restrict the time interval to the month of June in 2011. Use color to distinguish between the 2 types of riders.**
+```{r}
+BikeCleanJune <- 
+  BikeClean %>%
+  slice(3531:4250) # Days recorded from June 2011
+
+BikeCleanJune %>%
+  ggplot(aes(x = newDate, y = cnt)) +
+  geom_line(aes(group = casual), color = "blue") +
+  geom_line(aes(group = registered, color = "red")) +
+  ggtitle("June 2011 casual/registered rider counts")
+
+Bike %>%
+  slice(3531:4250) %>%
+  select(hr, weekday, casual) %>%
+  group_by(hr, weekday) %>%
+  summarise(count = sum(casual)) %>%
+  arrange(desc(count))
+
+Bike %>%
+  slice(3531:4250) %>%
+  select(hr, weekday, registered) %>%
+  group_by(hr, weekday) %>%
+  summarise(count = sum(registered)) %>%
+  arrange(desc(count))
+```
+
+
+
+**4.2 The plot has several intersting features. How do the number of casual and registered riders compare for different times of day and days of the week?**
+On the casual riders side, the largest amount of riders is Saturday around 4 P.M. On the registered side, the largest amount of riders is Wednesday 5 P.M.
+
+
+**4.3 Make another plot that examines the relationship between time and rider counts. Explain what additional insights your plot provides.** *(Recall that there are several other variables in the plot that contain time-related information)*
+```{r}
+Bike %>%
+  ggplot(aes(x = hr)) +
+  geom_point(aes(y = cnt)) +
+  ggtitle("Time vs. Rider Count")
+```
+Most of the riders are found around 5 p.m.
+
+
+
+## 5. Exploring Ride Sharing and Local (Washington DC) Weather 
+
+**5.1 Create a new variable called `propCasual` that is the proportion of casual riders among total riders in an hour.** 
+
+- Add this variable to the data frame bike. 
+- **Make a scatter plot of `propCasual` and `temp`.** 
+    - Take appropriate steps to correct for overplotting & ink saturation;
+    - also, color the points according to weather or the day of week, whichever you find more informative.
+```{r}
+BikeClean2 <-
+  BikeClean %>%
+  mutate(propCasual = casual/cnt)
+
+BikeClean2%>%
+  sample_n(500) %>%
+  ggplot(aes(x = temp, y = propCasual)) +
+  geom_point(aes(color = weathersit), alpha = 0.5) +
+  ggtitle("Proportion of Casual Riders vs. Temperature")
+```
+
+
+
+
+
+**5.2 What interesting aspect about this relationship do you see in this plot?**
+Even in better weather situations, the proportion of casual riders is largely still less than .5.
+
+
+**5.3 Make a different plot that examines the relationship between weather and rider counts. Explain what additional insights your plot provides.** *(Recall that there are several other variables in the plot that contain weather-related information.)*
+```{r}
+BikeClean2 %>%
+  ggplot(aes(x = weathersit)) +
+  geom_point(aes(y = cnt), color = "orange", alpha = 0.2) +
+  ggtitle("Rider Counts based on Weather Situation")
+```
+This plot is pretty clear: as the weather gets worse, the count drops largely.
+
+
+## 6. Summary based on exploratory data analysis (EDA) 
+
+Write out a short discussion (less than 1 page) that summarizes what you have learned from this analysis. You are also welcome to supplement with additional analyses beyond the information you have learned from the previous exercises. Just make sure that you briefly state the source of your information when citing work elsewhere in the document, e.g. "From the Figure in the solution to Problem 4.3, I found that..." 
+
+After completing this exercise, I found out a lot of cool new material that I will be able to use going forward with this class. First, I found out how to do a lot of cool new things, as I have never created or heard of a qqplot before completing this assignment. The qqplot allows to see how different distrubtions match up with each other, so it was interesting to analyze this trened with the casual and registered riders. Also, I found out how looking at different plots allow to see how different variables affect certain outcomes. For example, with 3.3 and 3.4, they are essentially the same plots except that the 3.4 plot has the density curve of the total number of riders. Having this allows the viewer to understand how total count of riders is more affected by registered riders compared to casual riders. Furthermore, with the last two plots, you see how the casual proportion is very high during the warmer and better weather situations, while the last one shows how the weather situation has a direct impact on the amount of total riders. Overall, this was a very cool exercise, and I look forward to doing more assignments like this. 
+
+
+
+
+

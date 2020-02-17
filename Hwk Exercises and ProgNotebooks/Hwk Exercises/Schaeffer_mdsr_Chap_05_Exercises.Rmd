@@ -1,0 +1,136 @@
+---
+title: "MDSR Chapter 5 Exercises"
+author: "TJ Schaeffer"
+date: "Due: 01/27/2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r echo=TRUE, message=FALSE}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(lubridate)
+library(mosaic)
+library(mosaicData)
+library(NHANES)
+library(macleish)
+library(babynames)
+library(Hmisc)
+library(Lahman)
+library(readr)
+library(xtable)
+library(devtools)
+library(rvest)
+# user-defined functions here (if any)
+
+# load data
+data("Teams") # from Lahman
+data("Marriage") # from mosaicData
+data("HELPrct") # from mosaicData
+```
+
+
+# Exercises
+
+## Section 5.2
+```{r}
+count_seasons <-
+  function (x) {
+    Teams %>%
+      group_by(teamID) %>%
+      summarise(count = n()) %>%
+      filter(teamID == x)
+  }
+
+count_seasons("ATL")
+```
+
+## Section 5.3
+```{r}
+bk_teams <- c("BR1", "BR2", "BR3", "BR4", "BRO", "BRP", "BRF")
+sapply(bk_teams, FUN = count_seasons)
+```
+
+## Section 5.4
+```{r}
+library(mosaic)
+Marriage %>%
+  select(appdate, ceremonydate, dob) %>%
+  mutate(appdate = mdy(appdate),
+         ceremonydate = mdy(ceremonydate),
+         dob = mdy(dob))
+```
+
+## Section 5.5
+```{r}
+x1 <- c("1900.45", "$1900.45", "1,900.45", "nearly $2000") 
+x2 <- as.factor(x1)
+as.numeric(x2)
+readr::parse_number(x1)
+```
+For as.numeric(x2), the function ranks the numbers from the vector in order of complexity. For readr::parse_number(x1), it takes the character string out of the items in the vector and lists them.
+
+## Section 5.6
+```{r}
+ds1 <-
+  data.frame(id = c("1", "2", "3", "1", "2", "3"),
+             group = c("T", "T", "T", "C", "C", "C"),
+             vals = c(4, 6, 8, 5, 6, 10))
+tab <- 
+  xtable(ds1) 
+print(tab, floating=FALSE)
+
+Treat <- 
+  ds1 %>% 
+  filter(group == "T") 
+Control <- 
+  ds1 %>%
+  filter(group == "C") 
+all <- mutate(Treat, diff = Treat$vals - Control$vals) 
+all
+```
+Two Possible Problems:
+* 
+
+## Section 5.7
+```{r}
+ds2 <-
+  data.frame(grp = c("A", "A", "B", "B"),
+             sex = c("F", "M", "F", "M"),
+             meanL = c(0.22, 0.47, 0.33, 0.55),
+             sdL = c(0.11, 0.33, 0.11, 0.31),
+             meanR = c(0.34, 0.57, 0.40, 0.65),
+             sdR = c(0.08, 0.33, 0.07, 0.27))
+ds2 %>%
+  gather(key = category, value = number, meanL, sdL, meanR, sdR)  %>%
+  unite(category, 2, 3, sep = ".") %>%
+  spread(key = category, value = number)
+
+```
+
+## Section 5.8
+```{r}
+Jeff <-
+HELPrct %>%
+  group_by(substance) %>%
+  dplyr::do(coef = lm(cesd ~ age, data = .))
+
+Jeff$coef
+```
+
+## Section 5.12
+```{r}
+page <- "https://en.wikipedia.org/wiki/List_of_nuclear_reactors#Japan"
+xpath <- '//*[@id="mw-content-text"]/div/table'
+table_list <- page %>%
+  read_html() %>%
+  html_nodes(xpath = xpath) %>%
+  html_table(fill = TRUE)
+head(table_list[[23]])
+```

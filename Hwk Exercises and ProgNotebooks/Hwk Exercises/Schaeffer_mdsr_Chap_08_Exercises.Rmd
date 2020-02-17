@@ -1,0 +1,521 @@
+---
+title: "MDSR Chapter 08 Exercises"
+author: "TJ Schaeffer"
+date: "Due: 02/24/2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(NHANES)
+library(tidyverse)
+library(rpart)
+library(partykit)
+library(randomForest)
+library(nnet)
+library(e1071)
+library(class)
+library(SuperLearner)
+# user-defined functions here (if any)
+
+# load data
+```
+
+
+# Exercises
+
+## Exercise 8.1
+### Clean Model
+```{r}
+# Clean up NHANES data table
+NHANESclean <- 
+  NHANES %>%
+  filter(!is.na(SleepTrouble) & !is.na(Age) & !is.na(BMI) & !is.na(DaysPhysHlthBad))
+NHANESclean
+```
+### Null model
+```{r}
+# Creating null model for SleepTrouble
+mod_null <- tally(~ SleepTrouble, data = NHANESclean, format = "percent")
+mod_null
+```
+** This model provides a baseline for the analysis of the SleepTrouble variable, as it says that we would by right around 74.6% of the time if we just assumed that someone did not have sleep trouble. **
+
+```{r}
+# Creating logistic model for SleepTrouble
+mod_logit <- glm(SleepTrouble ~ Age + BMI, data = NHANESclean, family = "binomial")
+msummary(mod_logit)
+```
+** The logistic model for SleepTrouble says that Age and BMI don't really have an effect on the SleepTrouble variable. **
+```{r}
+# Confusion matrix for SleepTrouble Logistic model
+SleepTrouble_logitProb <- predict(mod_logit, newdata = NHANESclean, type = "response")
+SleepTrouble_logit <- ifelse(SleepTrouble_logitProb > 0.5, yes = "yes", "no")
+confusion <- tally(SleepTrouble_logit ~ SleepTrouble, data = NHANESclean, format = "count")
+confusion
+```
+
+```{r}
+# Model accuaracy for SleepTrouble logistic model
+logit_acc <- sum(diag(confusion)) / nrow(NHANESclean) * 100
+logit_acc
+```
+
+```{r}
+# Decision tree rpart
+mod_tree <- rpart(SleepTrouble ~ ., data = NHANESclean)
+mod_tree
+```
+
+```{r}
+# Plot for decision tree
+plot(as.party(mod_tree))
+```
+** The decision tree shows how many different variable SleepTrouble is affected by the other variables in the table, with SleepHrsNight and DaysPhysHlthBad proving to be the strongest influencers. **
+```{r}
+# Branching and pruning for decision tree
+printcp(mod_tree)
+```
+
+```{r}
+# Confusion matrix for decision tree
+NC_tree <- 
+  NHANESclean %>%
+  mutate(SleepTrouble_dtree = predict(mod_tree, type = "class"))
+confusion <- tally(SleepTrouble_dtree ~ SleepTrouble, data = NC_tree, format = "count")
+confusion
+```
+
+
+```{r}
+# Model accuaracy for decision tree
+dtree_acc <- sum(diag(confusion)) / nrow(NHANESclean) * 100
+dtree_acc
+```
+
+```{r}
+# Creating random forest
+mod_forest <- randomForest(SleepTrouble ~ Age + BMI, data = NHANESclean, ntree = 2000, mtry = 2)
+mod_forest
+```
+** As seen in the graph below, the randomForest takes many decision trees and puts them together, which is seen in the plot. The plot shows that age and BMI are not the largest influencers. **
+```{r}
+# Model accuracy for random forest
+rf_acc <- sum(diag(mod_forest$confusion)) / nrow(NHANESclean) * 100
+rf_acc
+```
+
+```{r}
+# Creating neural network
+mod_nnet <- nnet(SleepTrouble ~ Age + BMI, data = NHANESclean, size = 3)
+```
+** The neural network takes the nodes of the variable SleepTrouble and finds the value at the node. **
+```{r}
+# Confusion matrix for nueral network
+SleepTrouble_nn <- predict(mod_nnet, newdata = NHANESclean, type = "class")
+confusion <- tally(SleepTrouble_nn ~ SleepTrouble, data = NHANESclean, format = "count")
+confusion
+```
+
+```{r}
+# Model accuracy for neural network
+nnet_acc <- sum(diag(confusion)) / nrow(NHANESclean) * 100
+nnet_acc
+```
+
+```{r}
+# Creating Naive Bayes
+mod_nb <- naiveBayes(SleepTrouble ~ Age + BMI, data = NHANESclean)
+SleepTrouble_nb <- predict(mod_nb, newdata = NHANESclean)
+confusion <- tally(SleepTrouble_nb ~ SleepTrouble, data = NHANESclean, format = "count")
+confusion
+```
+
+```{r}
+# Model accuracy for Naive Bayes
+nb_acc <- sum(diag(confusion)) / nrow(NHANESclean) * 100
+nb_acc
+```
+
+```{r}
+# Creating KNN
+SleepTrouble_quant <- 
+  NHANESclean %>%
+  select(Age, BMI)
+# KNN classifier
+SleepTrouble_knn <- knn(train = SleepTrouble_quant, test = SleepTrouble_quant, cl = NHANESclean$SleepTrouble, k = 5)
+# confusion matrix
+confusion <- tally(SleepTrouble_knn ~ SleepTrouble, data = NHANESclean, format = "count")
+confusion
+```
+
+```{r}
+# Model accuracy for KNN
+knn_acc <- sum(diag(confusion)) / nrow(NHANESclean) * 100
+knn_acc
+```
+
+```{r}
+# Creating plot
+ages <- range(~ Age, data = NHANESclean) 
+bmis <- range(~ BMI, data = NHANESclean) 
+res <- 100 
+fake_grid <- 
+  expand.grid(Age = seq(from = ages[1], to = ages[2], length.out = res), 
+              BMI = seq(from = bmis[1], to = bmis[2], length.out = res))
+
+
+form <- as.formula("SleepTrouble ~ Age + BMI") 
+dmod_tree <- rpart(form, data = NHANESclean, control = rpart.control(cp = 0.005, minbucket = 30))
+
+
+dmod_forest <- randomForest(form, data = NHANESclean, ntree = 201, mtry = 3) 
+dmod_nnet <- nnet(form, data = NHANESclean, size = 6)
+dmod_nb <- naiveBayes(form, data = NHANESclean)
+pred_tree <- predict(dmod_tree, newdata = fake_grid)[, "Yes"] 
+pred_forest <- predict(dmod_forest, newdata = fake_grid, type = "prob")[, "Yes"] 
+pred_knn <-
+  NHANESclean %>% 
+  select(Age, BMI) %>% 
+  knn(test = select(fake_grid, Age, BMI), cl = NHANESclean$SleepTrouble, k = 5) %>% 
+  as.numeric() - 1 
+pred_nnet <- predict(dmod_nnet, newdata = fake_grid, type = "raw") %>%
+  as.numeric() 
+pred_nb <- predict(dmod_nb, newdata = fake_grid, type = "raw")[, "Yes"]
+
+p <- tally(~ SleepTrouble, data = NHANESclean, format = "proportion")["Yes"]
+
+
+res <- 
+  fake_grid %>% 
+  mutate("Null" = rep(p, nrow(fake_grid)), "Decision Tree" = pred_tree, "Random Forest" = pred_forest, "k-Nearest Neighbor" = pred_knn, "Neural Network" = pred_nnet, "Naive Bayes" = pred_nb) %>% 
+  gather(key = "model", value = "y_hat", -Age, -BMI)
+
+ggplot(data = res, aes(x = Age, y = BMI)) + 
+  geom_tile(aes(fill = y_hat), color = NA) + 
+  geom_count(aes(color = SleepTrouble), alpha = 0.4, data = NHANESclean) + 
+  scale_fill_gradient(low = "white", high = "dodgerblue") + 
+  scale_color_manual(values = c("gray", "gold")) + 
+  scale_size(range = c(0, 2)) + 
+  scale_x_continuous(expand = c(0.02,0)) + 
+  scale_y_continuous(expand = c(0.02,0)) + 
+  facet_wrap(~model)
+```
+
+## Exercise 8.2
+```{r}
+# Cleaning data
+NHANESclean2 <- 
+  NHANES %>%
+  filter(!is.na(SleepHrsNight) & !is.na(Age) & !is.na(BMI) & !is.na(DaysPhysHlthBad))
+NHANESclean2
+```
+
+
+```{r}
+# Create null model
+mod_null2 <- tally(~ SleepHrsNight, data = NHANESclean2, format = "percent")
+mod_null2
+```
+
+```{r}
+# Creating Multiple regression
+mod_logit2 <- lm(SleepHrsNight ~ BMI + Age, data = NHANESclean2, family = "binomial")
+msummary(mod_logit2)
+```
+
+```{r}
+# Confusion matrix for log model
+SleepHrsNight_logitProb <- predict(mod_logit2, newdata = NHANESclean2, type = "response")
+SleepHrsNight_logit <- ifelse(SleepHrsNight_logitProb > 0.5, yes = "yes", "no")
+confusion2 <- tally(SleepHrsNight_logit ~ SleepHrsNight, data = NHANESclean2, format = "count")
+confusion2
+```
+
+```{r}
+# Model accuracy
+logit_acc2 <- sum(diag(confusion2)) / nrow(NHANESclean2) * 100
+logit_acc2
+```
+
+```{r}
+# Regression Tree
+mod_tree2 <- rpart(SleepHrsNight ~ ., data = NHANESclean2)
+mod_tree2
+```
+
+```{r}
+# Creating plot for regression tree
+plot(as.party(mod_tree2))
+```
+
+```{r}
+# Branching and pruning
+printcp(mod_tree2)
+```
+
+```{r}
+# Confusion matrix for regression tree
+NC_tree2 <- 
+  NHANESclean2 %>% 
+  mutate(SleepHrsNight_dtree = predict(mod_tree2, type = "class")) 
+confusion2 <- tally(SleepHrsNight_dtree ~ SleepHrsNight, data = NC_tree2, format = "count") 
+confusion2
+```
+
+```{r}
+# Model accuracy for regression tree
+rtree_acc <- sum(diag(confusion2)) / nrow(NHANESclean) * 100
+rtree_acc
+```
+
+```{r}
+# Random forest
+mod_forest2 <- randomForest(SleepHrsNight ~ BMI + Age, data = NHANESclean, ntree = 2000, mtry = 2)
+mod_forest2
+```
+
+## Exercise 8.3
+```{r}
+# Creating test and training scale
+n <- nrow(NHANESclean)
+test_idx <- sample.int(n, size = round(0.25 * n))
+train <- NHANESclean[-test_idx, ]  
+nrow(train)
+
+test <- NHANESclean[test_idx, ]
+nrow(test)
+```
+
+
+```{r}
+# Creating train and test null models
+train_mod_null <- tally(~ SleepTrouble, data = train, format = "percent")
+train_mod_null
+
+test_mod_null <- tally(~ SleepTrouble, data = test, format = "percent")
+test_mod_null
+```
+
+** Higher accuracy for training data than test data. **
+```{r}
+# Creating train and test logistic models
+train_mod_logit <- glm(SleepTrouble ~ Age + BMI, data = train, family = "binomial")
+msummary(train_mod_logit)
+
+test_mod_logit <- glm(SleepTrouble ~ Age + BMI, data = test, family = "binomial")
+msummary(test_mod_logit)
+```
+
+```{r}
+# Confusion matrixes for train and test logistic models
+train_SleepTrouble_logitProb <- predict(mod_logit, newdata = train, type = "response")
+train_SleepTrouble_logit <- ifelse(train_SleepTrouble_logitProb > 0.5, yes = "yes", "no")
+train_confusion <- tally(train_SleepTrouble_logit ~ SleepTrouble, data = train, format = "count")
+train_confusion
+
+test_SleepTrouble_logitProb <- predict(mod_logit, newdata = test, type = "response")
+test_SleepTrouble_logit <- ifelse(test_SleepTrouble_logitProb > 0.5, yes = "yes", "no")
+test_confusion <- tally(test_SleepTrouble_logit ~ SleepTrouble, data = test, format = "count")
+test_confusion
+```
+
+```{r}
+# Model accuaracies for train and test logistic model
+train_logit_acc <- sum(diag(train_confusion)) / nrow(train) * 100
+train_logit_acc
+
+test_logit_acc <- sum(diag(test_confusion)) / nrow(test) * 100
+test_logit_acc
+```
+** Higher accuracy for traing data than testing data. **
+
+```{r}
+# Decision trees for train and test
+train_mod_tree <- rpart(SleepTrouble ~ ., data = train)
+mod_tree
+
+test_mod_tree <- rpart(SleepTrouble ~ ., data = test)
+mod_tree
+```
+
+```{r}
+# Plots  for train and test decision tree
+plot(as.party(train_mod_tree))
+
+plot(as.party(test_mod_tree))
+```
+
+```{r}
+# Branching and pruning for train and test decision trees
+printcp(train_mod_tree)
+
+printcp(test_mod_tree)
+```
+
+```{r}
+# Confusion matrixes for train and test decision tree
+train_NC_tree <- 
+  train %>%
+  mutate(train_SleepTrouble_dtree = predict(train_mod_tree, type = "class"))
+train_confusion <- tally(train_SleepTrouble_dtree ~ SleepTrouble, data = train_NC_tree, format = "count")
+train_confusion
+
+test_NC_tree <- 
+  test %>%
+  mutate(test_SleepTrouble_dtree = predict(test_mod_tree, type = "class"))
+test_confusion <- tally(test_SleepTrouble_dtree ~ SleepTrouble, data = test_NC_tree, format = "count")
+test_confusion
+```
+
+
+```{r}
+# Model accuaracies for train and test decision trees
+train_dtree_acc <- sum(diag(train_confusion)) / nrow(train) * 100
+train_dtree_acc
+
+test_dtree_acc <- sum(diag(test_confusion)) / nrow(test) * 100
+test_dtree_acc
+```
+** Higher accuracy for test data than training data. **
+```{r}
+# Creating random forest
+train_mod_forest <- randomForest(SleepTrouble ~ Age + BMI, data = train, ntree = 2000, mtry = 2)
+train_mod_forest
+
+test_mod_forest <- randomForest(SleepTrouble ~ Age + BMI, data = test, ntree = 2000, mtry = 2)
+test_mod_forest
+```
+
+```{r}
+# Model accuracy for random forest
+train_rf_acc <- sum(diag(train_mod_forest$confusion)) / nrow(train) * 100
+train_rf_acc
+
+test_rf_acc <- sum(diag(test_mod_forest$confusion)) / nrow(test) * 100
+test_rf_acc
+```
+** Higher accuracy for traing data than testing data. **
+```{r}
+# Creating neural network
+train_mod_nnet <- nnet(SleepTrouble ~ Age + BMI, data = train, size = 3)
+
+test_mod_nnet <- nnet(SleepTrouble ~ Age + BMI, data = test, size = 3)
+```
+
+```{r}
+# Confusion matrix for nueral network
+train_SleepTrouble_nn <- predict(train_mod_nnet, newdata = train, type = "class")
+train_confusion <- tally(train_SleepTrouble_nn ~ SleepTrouble, data = train, format = "count")
+train_confusion
+
+test_SleepTrouble_nn <- predict(test_mod_nnet, newdata = test, type = "class")
+test_confusion <- tally(test_SleepTrouble_nn ~ SleepTrouble, data = test, format = "count")
+test_confusion
+```
+
+```{r}
+# Model accuracy for neural network
+train_nnet_acc <- sum(diag(train_confusion)) / nrow(train) * 100
+train_nnet_acc
+
+test_nnet_acc <- sum(diag(test_confusion)) / nrow(test) * 100
+test_nnet_acc
+```
+** Higher accuracy for test data than training data. **
+
+```{r}
+# Creating Naive Bayes/confusion matrix for Naive Bayes
+train_mod_nb <- naiveBayes(SleepTrouble ~ Age + BMI, data = train)
+train_SleepTrouble_nb <- predict(train_mod_nb, newdata = train)
+train_confusion <- tally(train_SleepTrouble_nb ~ SleepTrouble, data = train, format = "count")
+train_confusion
+
+test_mod_nb <- naiveBayes(SleepTrouble ~ Age + BMI, data = test)
+test_SleepTrouble_nb <- predict(test_mod_nb, newdata = test)
+test_confusion <- tally(test_SleepTrouble_nb ~ SleepTrouble, data = test, format = "count")
+test_confusion
+```
+
+```{r}
+# Model accuracy for Naive Bayes
+train_nb_acc <- sum(diag(train_confusion)) / nrow(train) * 100
+train_nb_acc
+
+test_nb_acc <- sum(diag(test_confusion)) / nrow(test) * 100
+test_nb_acc
+```
+** Higher accuracy for test data than training data. **
+```{r}
+# Creating KNN
+train_SleepTrouble_quant <- 
+  train %>%
+  select(Age, BMI)
+
+train_SleepTrouble_knn <- knn(train = train_SleepTrouble_quant, test = train_SleepTrouble_quant, cl = train$SleepTrouble, k = 5)
+
+train_confusion <- tally(train_SleepTrouble_knn ~ SleepTrouble, data = train, format = "count")
+train_confusion
+
+test_SleepTrouble_quant <- 
+  test %>%
+  select(Age, BMI)
+
+test_SleepTrouble_knn <- knn(train = test_SleepTrouble_quant, test = test_SleepTrouble_quant, cl = test$SleepTrouble, k = 5)
+
+test_confusion <- tally(test_SleepTrouble_knn ~ SleepTrouble, data = test, format = "count")
+test_confusion
+```
+
+```{r}
+# Model accuracy for KNN
+train_knn_acc <- sum(diag(train_confusion)) / nrow(train) * 100
+train_knn_acc
+
+test_knn_acc <- sum(diag(test_confusion)) / nrow(test) * 100
+test_knn_acc
+```
+** Higher accuracy for training data than test data. **
+
+## Ensemble Assignment
+```{r}
+# Train Model
+vote <- 3
+train_ensemble <- 
+  ifelse((train_SleepTrouble_knn   == "yes") + 
+         (train_SleepTrouble_nn    == "yes") + 
+         (train_mod_nb    == "yes") + 
+         (train_mod_logit == "yes") + 
+         (train_mod_forest$predicted == "yes") >= vote, 
+         "yes", "no")
+train_confusion <- tally(train_ensemble ~ SleepTrouble, data = train, format = "count")
+train_confusion
+
+train_ens_acc <- sum(diag(train_confusion)) / nrow(train) * 100
+train_ens_acc
+```
+
+```{r}
+# Test Model
+vote <- 3
+test_ensemble <- 
+  ifelse((test_SleepTrouble_knn   == "yes") + 
+         (test_SleepTrouble_nn    == "yes") + 
+         (test_mod_nb    == "yes") + 
+         (test_mod_logit == "yes") + 
+         (test_mod_forest$predicted == "yes") >= vote, 
+         "yes", "no")
+test_confusion <- tally(test_ensemble ~ SleepTrouble, data = test, format = "count")
+test_confusion
+
+test_ens_acc <- sum(diag(test_confusion)) / nrow(test) * 100
+test_ens_acc
+```
+** The train ensemble is the more accurate model than the test ensemble. **

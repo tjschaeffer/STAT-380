@@ -1,0 +1,239 @@
+---
+title: "Simulation Basics"
+author: "TJ Schaeffer"
+date: 'Due: 02/03/2019'
+output:
+  html_notebook: default
+---
+rm(list = ls())
+
+```{r Front Matter, include=FALSE}
+### Note: `include=FALSE` causes R to run the code, but does not show this chunk in the R Notebook
+# always clean up R environment
+
+# packages
+library(tidyverse)
+library(mdsr)
+library(mosaic)
+library(dplyr)
+# inputs & source data
+# Bike Data     #csv from Berkely University
+
+```
+
+
+# Project tasks
+
+## 1. Simulation Intro
+
+### 1.1 [4 pts] Generate Random Normal Data
+
+**Task 1.1.1: Simulate n = 20 random samples from a Normal distribution with mean 0 and standard deviation 3 (hint: use the `rnorm` function), and show a density plot of your sample.**
+```{r}
+# Make a Noramal distribution with sample size 20
+RandomSampleD1 <- 
+  rnorm(20, mean = 0, sd = 3)
+RandomSample1 %>%
+  density() %>%
+  plot()
+```
+
+
+
+
+**Task 1.1.2: Simulate n = 1000 random samples from a Normal distribution with mean 0 and standard deviation 3, and show a density plot of your sample.**
+```{r}
+# Make a Noramal distribution with sample size 1000
+RandomSampleD2 <- 
+  rnorm(1000, mean = 0, sd = 3)
+RandomSample2 %>%
+  density() %>%
+  plot()
+```
+
+
+
+
+
+### 1.2 [5 pts] Describe Random Normal Samples
+
+**Corresponding to each plot, [A] report the summary statistics requested, AND [B] explain (one sentence/phrase) how your observations for each sample relate to your understanding of the Normal Distribution from STAT 200 (or similar introductory statistics course).  You may use the bullet list below to organize your observations**
+
+- **Task 1.2.1: Sample 1 (n = 20)**
+    - mean: 0.1771333
+    - standard deviation: 3.239015
+    - first quartile: -1.361827
+    - median: -0.140487
+    - third quartile: 2.066212
+- **Task 1.2.2: Sample 3 (n = 1000)**
+    - mean: 0.01054793
+    - standard deviation:2.86485
+    - first quartile: -1.968635
+    - median: 0.007783746
+    - third quartile: 1.997377
+    **The larger the sample size taken from the distribution, the more Normal the density distrubution looks and the more accurate the mean and standard devation are. **
+```{r}
+favstats(RandomSampleD1)
+favstats(RandomSampleD2)
+```
+
+
+## 1.3 [9 pts] Generate and Describe Random Gamma Samples
+
+**Repeat the above exercises, for a Gamma distribution (hint: use function `rgamma`). A Gamma distribution has two parameters: shape and scale.**
+
+
+**Task 1.3.1: Simulate n = 20 random samples from a Gamma(shape = 4, scale = 3). Show a density plot of your sample, as well as provide and describe the sample mean, median, standard deviation and quantiles again (bullet list is fine).**
+```{r}
+# Make a Gamma distribution with sample size 20
+RandomSampleG1 <- 
+  rgamma(20, shape = 4, scale = 3)
+RandomSampleG1 %>%
+  density() %>%
+  plot()
+```
+```{r}
+favstats(RandomSampleG1)
+```
+    - mean: 13.12594
+    - standard deviation: 5.905417
+    - first quartile: 8.270575
+    - median: 14.38624
+    - third quartile: 17.1768
+** A gamma plot should be right skewed with the mean large than the median. However, since the sample size is so small, the plot shows a weak plot with a larger median than mean. **
+
+
+
+**Task 1.3.2: Simulate n = 1000 random samples from a Gamma(shape = 4, scale = 3). Show a density plot of your sample, as well as provide and describe the sample mean, median, standard deviation and quantiles again (bullet list is fine).**
+```{r}
+# Make a Gamma distribution with sample size 1000
+RandomSampleG2 <- 
+  rgamma(1000, shape = 4, scale = 3)
+RandomSampleG2 %>%
+  density() %>%
+  plot()
+```
+
+```{r}
+favstats(RandomSampleG2)
+```
+    - mean: 11.76334
+    - standard deviation: 5.760733
+    - first quartile: 7.691092
+    - median: 10.80779
+    - third quartile: 14.89453
+** This gamma plot correctly shows the right skew as the mean is greater than the median.**
+
+
+## 2. [9 pts] Quantile-quantile plots
+
+**For each of the following pairs of samples, [A] make a q-q plot (quantile-quantile plot), [B] provide a brief summary to describe the appearance, and [C] to interpret what the q-q plots indicate about the relationship between Sample1 and Sample2.**
+
+**Task 2.1: Plot, describe, and interpret a q-q plot for:**  
+- Sample1: Normal(mean = 3, sd = 8); n = 100 samples  
+- Sample2: Normal(mean = -2, sd = 4); n = 100 samples  
+```{r}
+qqplot(x = rnorm(100, mean = 3, sd = 8),
+       y = rnorm(100, mean = -2, sd = 4),
+       main = "QQPlot of Normal Samples")
+```
+** This qqplot is fairly curved, which means that one the sample distributions is skewed. **
+
+
+
+**Task 2.2: Plot, describe, and interpret a q-q plot for:**  
+- Sample1: Normal(mean = 0, sd = 1); n = 100 samples  
+- Sample2: t-distribution with mean 0; n = 100 samples  
+```{r}
+qqplot(x = rnorm(100, mean = 0, sd = 1),
+       y = rt(100, 98),
+       main = "QQPlot of a Normal and T-distribution sample")
+```
+** This plot, unlike the previous one, is fairly linear, which means that both the Normal sample and the t-distribution sample are very similar. **
+
+
+
+**Task 2.3: Plot, describe, and interpret a q-q plot for:**  
+- Sample1: Normal(mean = 0, sd = 1); n = 100 samples  
+- Sample2: Gamma(shape=3, scale=8); n = 100 samples  
+```{r}
+qqplot(x = rnorm(100, mean = 0, sd = 1),
+       y = rgamma(100, shape = 3, scale = 8),
+       main = "QQPlot of a Normal Sample and a Gamma Sample")
+```
+** 
+
+
+
+## 3. Back on the bicycle... (Random Subsets)
+
+**Return to the bike sharing data set from last week (you may need to consult your previous assignment).  You will draw and explore several random samples--without replacement--from the data.**
+
+
+**Task 3.1: [9 pts] Make 3 scatterplots for 3 different random data subsets of size 500 each. Show a scatter plot of *propCasual* and *temp* for each random subset of the data. Make sure to correct for overplotting, and color the points according to the day of the week or weather, whichever is more informative. What do you see? Are these plots as informative as the previous assignment? Are they roughly consistent across random samples?**
+```{r}
+Bike <- read.csv("http://www.stat.berkeley.edu/users/nolan/data/bikeshare.txt")
+BikeClean <-
+  Bike %>%
+  mutate(propCasual = casual/cnt)
+```
+
+```{r}
+# Make 3 samples
+Bike1 <- 
+  sample_n(BikeClean, size = 500, replace = FALSE)
+
+Bike2 <-
+  sample_n(BikeClean, size = 500, replace = FALSE)
+
+Bike3 <-
+  sample_n(BikeClean, size = 500, replace = FALSE)
+
+# Make 3 scatterplots
+Bike1 %>%
+  ggplot(aes(x = propCasual, y = temp)) +
+  geom_point(aes(color = weathersit), alpha = 0.2)
+
+Bike2 %>%
+  ggplot(aes(x = propCasual, y = temp)) +
+  geom_point(aes(color = weathersit), alpha = 0.2)
+
+Bike3 %>%
+  ggplot(aes(x = propCasual, y = temp)) +
+  geom_point(aes(color = weathersit), alpha = 0.2)
+```
+** I see that as the temperature increases, so does the propCasual rate, and this pattern is consistent across all the plots.Although the weathersit is an extra variable, due to the small sample size, it is very challenging to see what pattern the weathersit has within the plots. As a result, these plots are not as informative as the one in the previous assignment. **
+
+
+
+**Task 3.2: [9 pts] Repeat the exercise for 3 different samples of size 2,000 each.**
+```{r}
+# Make 3 samples
+Bike1 <- 
+  sample_n(BikeClean, size = 2000, replace = FALSE)
+
+Bike2 <-
+  sample_n(BikeClean, size = 2000, replace = FALSE)
+
+Bike3 <-
+  sample_n(BikeClean, size = 2000, replace = FALSE)
+
+# Make 3 scatterplots
+Bike1 %>%
+  ggplot(aes(x = propCasual, y = temp)) +
+  geom_point(aes(color = weathersit), alpha = 0.2)
+
+Bike2 %>%
+  ggplot(aes(x = propCasual, y = temp)) +
+  geom_point(aes(color = weathersit), alpha = 0.2)
+
+Bike3 %>%
+  ggplot(aes(x = propCasual, y = temp)) +
+  geom_point(aes(color = weathersit), alpha = 0.2)
+```
+** Compared to the previous plots, they are very similar except that the weathersit variable is much more present in these plots due to the higher sample size. The pattern from the previous plots still exists, as the temp increases so does the propCasual rate. Overall, these plots were just as informative as the plots in the previous assignment. **
+
+
+
+
+

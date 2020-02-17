@@ -1,0 +1,286 @@
+---
+title: "MDSR Chapter 10 Prog Nbk"
+author: "TJ Schaeffer"
+date: "Due: March 24, 2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r echo=TRUE, message=FALSE}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(mosaic)
+library(mosaicData)
+library(tidyr)
+# user-defined functions here (if any)
+
+# load data
+```
+
+
+# Chapter Notes
+
+## Section 10.1
+
+## Section 10.2
+```{r}
+# p. 222
+NCI60 <- etl_NCI60()
+```
+
+```{r}
+# p. 223
+Spreads <- 
+  NCI60 %>% 
+  gather(value = expression, key = cellLine, -Probe) %>% 
+  group_by(Probe) %>% 
+  summarize(N = n(), 
+            spread = sd(expression)) %>% 
+  arrange(desc(spread)) %>% 
+  mutate(order = row_number())
+```
+
+```{r}
+# p. 223
+Sim_spreads <- 
+  NCI60 %>% 
+  gather(value = expression, key = cellLine, -Probe) %>% 
+  mutate(Probe = shuffle(Probe)) %>% 
+  group_by(Probe) %>% 
+  summarize(N = n(), 
+            spread = sd(expression)) %>% 
+  arrange(desc(spread)) %>% 
+  mutate(order = row_number())
+```
+
+## Section 10.3
+```{r}
+# p. 224
+Spreads %>% 
+  filter(order <= 500) %>% 
+  ggplot(aes(x = order, y = spread)) + 
+  geom_line(color = "blue", size = 2) + 
+  geom_line(data = filter(Sim_spreads, order <= 500), color = "red", size = 2)
+```
+
+```{r}
+# p. 224
+runif(5)
+```
+
+```{r}
+# p. 225
+select_one <- function(vec) { 
+  n <- length(vec) 
+  ind <- which.max(runif(n)) 
+  vec[ind]
+}
+select_one(letters)  
+
+select_one(letters)
+```
+## Section 10.4
+
+### Section 10.4.1
+```{r}
+# p. 226
+n <- 100000 
+sim_meet <- data.frame(
+  sally <- runif(n, min = 0, max = 60), 
+  joan <- runif(n, min = 0, max = 60)) %>% 
+  mutate(result = ifelse(abs(sally - joan) <= 10,
+"They meet", "They do not")) 
+tally(~ result, format = "percent", data = sim_meet)
+
+binom.test(~result, n, success = "They meet", data = sim_meet)
+```
+
+### Section 10.4.2
+```{r}
+# p. 227
+jobs_true <- 150 
+jobs_se <- 65 
+gen_samp <- function(true_mean, true_sd, num_months = 12, delta = 0, id = 1) { 
+  samp_year <- rep(true_mean, num_months) +
+    rnorm(num_months, mean = delta * (1:num_months), sd = true_sd) 
+  return(data.frame(jobs_number = samp_year, 
+                    month = as.factor(1:num_months), id = id))
+}
+```
+
+```{r}
+# p. 228
+n_sims <- 3 
+params <- data.frame(sd = c(0, rep(jobs_se, n_sims)),
+                                 id = c("Truth", paste("Sample", 1:n_sims)))
+params
+```
+
+```{r}
+# p. 228
+df <- params %>% 
+  group_by(id) %>% 
+  dplyr::do(gen_samp(true_mean = jobs_true, true_sd = .$sd, id = .$id))
+```
+
+### Section 10.4.3
+```{r}
+# p. 228
+minval <- 7 
+maxval <- 19 
+JustScores <- 
+  Violations %>% 
+  filter(score >= minval & score <= maxval) %>% 
+  select(dba, score) %>% 
+  unique()
+```
+
+```{r}
+# p. 229
+ggplot(data = sim_meet, aes(x = joan, y = sally, color = result)) + 
+  geom_point(alpha = 0.3) + 
+  geom_abline(intercept = 10, slope = 1) + 
+  geom_abline(intercept = -10, slope = 1)
+```
+
+```{r}
+# p. 229
+ggplot(data = df, aes(x = month, y = jobs_number)) + 
+  geom_hline(yintercept = jobs_true, linetype = 2) + 
+  geom_bar(stat = "identity") + 
+  facet_wrap(~ id) + 
+  ylab("Number of new jobs (in thousands)")
+```
+
+```{r}
+# p. 230
+ggplot(data = JustScores, aes(x = score)) + 
+  geom_histogram(binwidth = 0.5) + 
+  geom_vline(xintercept = 13, linetype = 2) +
+  scale_x_continuous(breaks = minval:maxval) + 
+  annotate("text", x = 10.5, y = 10300, label = "A grade: score of 13 or less")
+```
+
+```{r}
+# p. 230
+scores <- tally(~score, data = JustScores) 
+scores
+
+obs_diff <- scores["13"] - scores["14"]
+mean(scores[c("13", "14")])
+
+RandomFlip <- do(1000) * rflip(scores["13"] + scores["14"]) 
+head(RandomFlip, 3)
+```
+
+```{r}
+# p. 231
+ggplot(data = RandomFlip, aes(x = heads)) + 
+  geom_histogram(binwidth = 5) + 
+  xlim(c(2100, NA)) + 
+  geom_vline(xintercept = scores["14"], col = "red") + 
+  annotate("text", x = 2137, y = 45, label = "observed", hjust = "left") + 
+  xlab("Number of restaurants with scores of 14 (if equal probability)")
+```
+
+## Section 10.5
+```{r}
+# p. 232
+any_active <- function(df) { 
+  return(max(df$endtime) == Inf)
+}
+
+next_customer <- function(df) {
+  res <- filter(df, endtime == Inf) %>% 
+    arrange(arrival) 
+  return(head(res, 1))
+}
+
+update_customer <- function(df, cust_num, end_time) {
+  return(mutate(df, endtime = 
+                  ifelse(custnum == cust_num, end_time, endtime)))
+}
+```
+
+```{r}
+# p. 232-233
+run_sim <- function(n = 1/2, m = 3/2, hours = 6) {
+  customers <- rpois(hours * 60, lambda = n) 
+  arrival <- numeric(sum(customers)) 
+  position <- 1 
+  for (i in 1:length(customers)) {
+    numcust <- customers[i] 
+    if (numcust != 0) {
+      arrival[position:(position + numcust - 1)] <- rep(i, numcust) 
+      position <- position + numcust
+    }
+  }
+  duration <- rexp(length(arrival), rate = 1/m)	 
+  df <- data.frame(arrival, duration, custnum = 1:length(duration), endtime = Inf, stringsAsFactors = FALSE)
+  
+endtime <- 0  
+while (any_active(df)) {
+  next_one <- next_customer(df) 
+  now <- ifelse(next_one$arrival >= endtime, next_one$arrival, endtime)
+  endtime <- now + next_one$duration 
+  df <- update_customer(df, next_one$custnum, endtime)
+  }
+  df <- mutate(df, totaltime = endtime - arrival) 
+  return(favstats(~ totaltime, data = df))
+}
+```
+
+```{r}
+# p. 233
+sim_results <- do(3) * run_sim() 
+sim_results
+```
+
+## Section 10.6
+
+## Section 10.7
+```{r}
+# p. 234
+campus_sim <- function(num_sim = 1000, wait = 10) { 
+  sally <- runif(num_sim, min = 0, max = 60) 
+  joan <- runif(num_sim, min = 0, max = 60) 
+  return(sum(abs(sally - joan) <= wait) / num_sim)
+}
+reps <- 5000 
+params <- data.frame(num_sims = c(100, 400, 1600)) 
+sim_results <- 
+  params %>% 
+  group_by(num_sims) %>% 
+  dplyr::do(mosaic::do(reps) * campus_sim(.$num_sims)) 
+favstats(campus_sim ~ num_sims, data = sim_results)
+```
+
+```{r}
+# p. 234
+sim_results20k <- do(reps) * campus_sim(num_sim = 20000) 
+favstats(~ campus_sim, data = sim_results)
+```
+
+```{r}
+# p. 235
+ggplot(data = sim_results, aes(x = campus_sim, color = factor(num_sims))) + 
+  geom_density(size = 2) + 
+  scale_x_continuous("Proportion of times that Sally and Joan meet")
+```
+
+```{r}
+# p. 235
+set.seed(1974) 
+campus_sim()
+
+campus_sim()
+
+set.seed(1974) 
+campus_sim()
+```

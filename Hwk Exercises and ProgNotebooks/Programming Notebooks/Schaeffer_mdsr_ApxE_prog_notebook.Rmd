@@ -1,0 +1,256 @@
+---
+title: "STAT 380 Homework Exercises"
+subtitle: "MDSR Appendix E"
+author: "TJ Schaeffer"
+date: "Due: 02/10/2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(lubridate)
+library(mosaic)
+library(mosaicData)
+library(NHANES)
+library(macleish)
+library(babynames)
+library(Hmisc)
+library(Lahman)
+library(readr)
+library(xtable)
+library(devtools)
+library(rvest)
+# user-defined functions here (if any)
+
+# load data
+data("RailTrail") #from mosaicData
+```
+
+
+# Exercises
+
+# E 1.1
+```{r}
+# p. 466 
+glimpse(RailTrail)
+```
+
+```{r}
+# p. 466
+mod <- 
+  lm(volume ~ hightemp, data = RailTrail) 
+coef(mod)
+```
+
+```{r}
+# p. 467
+plotModel(mod, system = "ggplot2")
+```
+
+# E 1.2
+
+# E 1.3
+```{r}
+# p. 468
+n <- 
+  nrow(RailTrail) 
+SST <- var(~volume, data = RailTrail) * (n - 1) 
+SSE <- var(residuals(mod)) * (n - 1) 
+1 - SSE / SST
+
+rsquared(mod)
+```
+
+# E 1.4
+```{r}
+# p. 469
+coef(lm(volume ~ weekday, data = RailTrail))
+```
+
+```{r}
+# p. 469
+mean(volume ~ weekday, data = RailTrail)
+diff(mean(volume ~ weekday, data = RailTrail))
+```
+
+```{r}
+# p. 469
+RailTrail <-
+  RailTrail %>% 
+  mutate(day = ifelse(weekday == 1, "weekday", "weekend/holiday"))
+```
+
+```{r}
+# p. 469
+coef(lm(volume ~ day, data = RailTrail))
+```
+
+#E.2
+
+#E.2.1
+```{r}
+# p. 470
+mod_parallel <- 
+  lm(volume ~ hightemp + weekday, data = RailTrail) 
+coef(mod_parallel)
+
+rsquared(mod_parallel)
+```
+
+```{r}
+# p. 471
+plotModel(mod_parallel, system = "ggplot2")
+```
+
+# E.2.2
+```{r}
+# p. 471
+mod_planes <- 
+  lm(volume ~ hightemp + precip, data = RailTrail) 
+coef(mod_planes)
+```
+
+```{r}
+# p. 472
+mod_p_planes <- 
+  lm(volume ~ hightemp + precip + weekday, data = RailTrail) 
+coef(mod_p_planes)
+```
+
+#E.2.3
+```{r}
+# p. 472
+mod_interact <- 
+  lm(volume ~ hightemp + weekday + hightemp * weekday, data = RailTrail)
+coef(mod_interact)
+
+rsquared(mod_interact)
+```
+
+```{r}
+# p. 472
+plotModel(mod_interact, system = "ggplot2")
+```
+
+#E.2.4
+```{r}
+# p. 473
+library(NHANES) 
+NHANES %>% 
+  sample(300) %>% 
+  filter(Gender == "female") %>%
+  ggplot(aes(x = Age, y = Height)) + 
+  geom_point() +
+  stat_smooth(method = lm, se = 0) +
+  stat_smooth(method = loess, se = 0, color = "green") +
+  xlab("Age (in years)") + ylab("Height (in cm)")
+```
+
+```{r}
+# p. 473
+ggplot(data = RailTrail, aes(x = hightemp, y = volume)) +
+  geom_point() +
+  stat_smooth(method = lm) +
+  stat_smooth(method = loess, color = "green") +
+  ylab("Number of trail crossings") + xlab("High temperature (F)")
+```
+
+#E.3
+```{r}
+# p. 474
+msummary(mod_p_planes)
+```
+
+```{r}
+# p. 475
+confint(mod_p_planes)
+```
+
+#E.4
+```{r}
+# p. 476
+mplot(mod_p_planes, which = 1, system = "ggplot2")
+```
+
+```{r}
+# p. 476
+mplot(mod_p_planes, which = 2, system = "ggplot2")
+```
+
+```{r}
+# p. 476
+mplot(mod_p_planes, which = 3, system = "ggplot2")
+```
+
+```{r}
+# p. 477
+mplot(mod_p_planes, which = 4, system = "ggplot2")
+```
+
+```{r}
+# p. 477
+library(broom) 
+augment(mod_p_planes) %>%
+filter(.cooksd > 0.4)
+```
+
+# E.5
+```{r}
+# p. 478
+NHANES <- 
+  NHANES %>% 
+  mutate(has_diabetes = as.numeric(Diabetes == "Yes"))
+log_plot <- ggplot(data = NHANES, aes(x = Age, y = has_diabetes)) + 
+  geom_jitter(alpha = 0.1, height = 0.05) + 
+  geom_smooth(method = "glm", method.args = list(family = "binomial")) + 
+  ylab("Diabetes status")
+```
+
+```{r}
+# p. 478
+logreg <- 
+  glm(has_diabetes ~ BMI + Age, family = "binomial", data = NHANES) 
+msummary(logreg)
+```
+
+```{r}
+# p. 479
+ages <- range(~Age, data = NHANES) 
+bmis <- range(~BMI, data = NHANES, na.rm = TRUE) 
+res <- 100 
+fake_grid <- expand.grid(Age = seq(from = ages[1], to = ages[2], length.out = res), BMI = seq(from = bmis[1], to = bmis[2], length.out = res)
+) 
+y_hats <- 
+  fake_grid %>% 
+  mutate(y_hat = predict(logreg, newdata = ., type = "response"))
+
+```
+
+```{r}
+# p. 479
+ggplot(data = NHANES, aes(x = Age, y = BMI)) + 
+  geom_tile(data = y_hats, aes(fill = y_hat), color = NA) + 
+  geom_count(aes(color = as.factor(has_diabetes)), alpha = 0.4) + 
+  scale_fill_gradient(low = "white", high = "dodgerblue") + 
+  scale_color_manual("Diabetes", values = c("gray", "gold")) + 
+  scale_size(range = c(0, 2))
+```
+
+```{r}
+# p. 480
+log_plot + xlab("Age (in years)")
+```
+
+```{r}
+# p. 480
+log_plot + aes(x = BMI) + xlab("BMI (body mass index)")
+```
+

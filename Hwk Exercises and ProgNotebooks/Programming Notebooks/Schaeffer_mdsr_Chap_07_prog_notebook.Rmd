@@ -1,0 +1,312 @@
+---
+title: "MDSR Chapter 7 Prog Nbk"
+author: "TJ Schaeffer"
+date: "Due: January 27, 2019"
+output: html_notebook
+---
+
+# Front matter
+
+```{r echo=TRUE, message=FALSE}
+# always clean up R environment
+rm(list = ls())
+
+# load all packages here
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(lubridate)
+library(mosaic)
+library(mosaicData)
+library(NHANES)
+library(macleish)
+library(babynames)
+library(Hmisc)
+# user-defined functions here (if any)
+
+
+# load data
+```
+
+
+# Chapter Notes
+
+## Section 7.1
+```{r}
+# p. 150
+library(mdsr) 
+library(nycflights13) 
+SF <- 
+  flights %>% 
+  filter(dest == "SFO", !is.na(arr_delay))
+```
+
+```{r}
+# p. 150
+set.seed(101)
+Sample25 <- 
+  SF %>%
+  sample_n(size = 25)
+```
+
+```{r}
+# p. 150
+favstats(~ arr_delay, data = Sample25)
+```
+
+```{r}
+# p. 151
+favstats(~ arr_delay, data = SF)
+```
+
+```{r}
+# p. 151
+qdata( ~ arr_delay, p = 0.98, data = Sample25)
+```
+
+```{r}
+# p. 151
+tally( ~ arr_delay < 90, data = SF, format = "proportion")
+```
+
+```{r}
+# p. 151
+qdata( ~ arr_delay, p = 0.98, data = SF)
+```
+
+
+## Section 7.2
+```{r}
+# p. 152
+n <- 25
+mean(~ arr_delay, data = sample_n(SF, size = n, replace = FALSE))
+```
+
+```{r}
+# p. 153
+mean( ~ arr_delay, data = sample_n(SF, size = n, replace = FALSE))
+```
+
+```{r}
+# p. 153
+Trials <- 
+  do(500) * mean( ~ arr_delay, data = sample_n(SF, size = n, replace = FALSE))
+head(Trials)
+```
+
+```{r}
+# p. 153
+favstats( ~ mean, data = Trials)
+```
+
+```{r}
+# p. 153
+mean(~ mean, data = Trials) + 2 * sd(~ mean, data = Trials) * c(-1, 1)
+```
+
+```{r}
+# p. 154
+Trials_100 <- 
+  do(500) * mean( ~ arr_delay, data = SF %>% 
+                    sample_n(size = 100, replace = FALSE))
+```
+
+```{r}
+# p. 154
+rbind(Trials %>% 
+        mutate(n = 25), Trials_100 %>% 
+        mutate(n = 100)) %>% 
+  ggplot(aes(x = mean)) + geom_histogram(bins = 30) + facet_grid( ~ n) + xlab("Sample mean")
+```
+
+## Section 7.3
+
+```{r}
+# p. 155
+Small <- 
+  sample_n(SF, size = 3, replace = FALSE)
+
+```
+
+```{r}
+# p. 155
+Small %>% 
+  sample_n(size = 3, replace = TRUE)
+```
+
+```{r}
+# p. 156
+Small %>% 
+  sample_n(size = 3, replace = TRUE)
+```
+
+```{r}
+# p. 156
+n <- 200 
+Orig_sample <- 
+  SF %>% 
+  sample_n(size = n, replace = FALSE)
+```
+
+```{r}
+# p. 156
+mean( ~ arr_delay, data = sample_n(Orig_sample, size = n, replace = TRUE))
+```
+
+```{r}
+# p. 156
+Bootstrap_trials <- 
+  do(500) * mean( ~ arr_delay, data = sample_n(Orig_sample, size = n, replace = TRUE))
+favstats( ~ mean, data = Bootstrap_trials)
+```
+
+```{r}
+# p. 156
+Trials_200 <- 
+  do(500) * mean( ~ arr_delay, data = sample_n(SF, size = n, replace = FALSE))
+favstats( ~ mean, data = Trials_200)
+```
+
+```{r}
+# p. 157
+qdata( ~ arr_delay, p = 0.98, data = Orig_sample)
+```
+
+```{r}
+# p. 157
+Bootstrap_trials <- 
+  do(500) * qdata( ~ arr_delay, p = 0.98,
+data = sample_n(Orig_sample, size = n, replace = TRUE)) 
+favstats( ~ quantile, data = Bootstrap_trials)
+```
+
+## Section 7.4
+```{r}
+# p. 158
+SF %>% 
+  filter(arr_delay >= 420) %>% 
+  select(month, day, dep_delay, arr_delay, carrier)
+```
+
+```{r}
+# p. 158
+SF %>% 
+  mutate(long_delay = arr_delay > 60) %>% 
+  tally(~ long_delay | month, data = .)
+```
+
+```{r}
+# p. 159
+SF %>% 
+  filter(arr_delay < 420) %>% 
+  ggplot(aes(arr_delay)) + geom_histogram(binwidth = 15)
+```
+
+```{r}
+# p. 159
+SF %>% 
+  mutate(long_delay = arr_delay > 60) %>% 
+  tally(~ long_delay | carrier, data = .)
+```
+
+## Section 7.5
+```{r}
+# p. 160
+tally( ~ hour, data = SF)
+```
+
+```{r}
+# p. 160
+SF %>% 
+  ggplot(aes(x = hour, y = arr_delay)) +
+  geom_boxplot(alpha = 0.1, aes(group = hour)) +
+  geom_smooth(method = "lm") +
+  xlab("Scheduled hour of departure") +
+  ylab("Arrival delay (minutes)") +
+  coord_cartesian(ylim = c(-30, 120))
+```
+
+```{r}
+# p. 160
+mod1 <- lm(arr_delay ~ hour, data = SF) 
+msummary(mod1)
+```
+
+```{r}
+# p. 161
+library(lubridate) 
+SF <- 
+  SF %>% 
+  mutate(day = ymd(paste0(year, "-", month, "-", day)), 
+         dow = as.character(wday(day, label = TRUE)), 
+         season = ifelse(month %in% 6:7, "summer", "other month"))
+```
+
+```{r}
+# p. 161
+mod2 <- lm(arr_delay ~ hour + origin + carrier + season + dow, data = SF) 
+msummary(mod2)
+```
+
+## Section 7.6
+```{r}
+# p. 163
+library(mdsr) 
+SAT_2010 <- 
+  mutate(SAT_2010, Salary = salary/1000) 
+SAT_plot <- 
+  ggplot(data = SAT_2010, aes(x = Salary, y = total)) + 
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  ylab("Average total score on the SAT") + 
+  xlab("Average teacher salary (thousands of USD)")
+SAT_plot
+```
+
+```{r}
+# p. 163
+SAT_mod1 <- lm(total ~ Salary, data = SAT_2010)
+msummary(SAT_mod1)
+```
+
+```{r}
+# p. 164
+favstats(~ sat_pct, data = SAT_2010)
+SAT_2010 <- 
+  SAT_2010 %>% 
+  mutate(SAT_grp = ifelse(sat_pct <= 27, "Low", "High")) 
+tally(~ SAT_grp, data = SAT_2010)
+```
+
+```{r}
+# p. 164
+SAT_plot %+% 
+  SAT_2010 + 
+  aes(color = SAT_grp)
+```
+
+```{r}
+# p. 164
+coef(lm(total ~ Salary, data = filter(SAT_2010, SAT_grp == "Low")))
+coef(lm(total ~ Salary, data = filter(SAT_2010, SAT_grp == "High")))
+```
+
+```{r}
+# p. 165
+SAT_mod2 <- lm(total ~ Salary + sat_pct, data = SAT_2010)
+msummary(SAT_mod2)
+```
+
+## Section 7.7
+```{r}
+# p. 166
+1 - (1-0.05)^5
+```
+
+```{r}
+# p. 166
+1 - (1-.01)^5
+```
+
+## Section 7.8 
+## Section 7.9
